@@ -1,0 +1,26 @@
+# IDE and Editors
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Backend Build artifacts
+work-report-backend/target/
+work-report-backend/build/
+work-report-backend/.mvn/wrapper/maven-wrapper.jar
+
+# Frontend Dependencies and Build
+work-report-frontend/node_modules/
+work-report-frontend/dist/
+work-report-frontend/dist-ssr/
+work-report-frontend/*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
