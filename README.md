@@ -147,8 +147,8 @@ Repository: [https://github.com/AayushSrivastava15/work-report](https://github.c
    cd work-report/work-report-backend
    ```
 
-2. Configure environment variables:
-   Copy `.env.example` to `.env` or configure database credentials in `src/main/resources/application.properties`:
+2. Configure database credentials:
+   Create a `.env` file or configure database credentials in `src/main/resources/application.properties`:
    ```properties
    spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/work_report_db}
    spring.datasource.username=${DB_USERNAME:postgres}
