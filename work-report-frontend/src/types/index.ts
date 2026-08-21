@@ -5,6 +5,11 @@ export interface UserResponse {
   createdAt: string;
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
 export interface ProjectResponse {
   id: number;
   name: string;
@@ -70,9 +75,32 @@ export interface DashboardStatusResponse {
   workCount: number;
 }
 
+export interface ReportFilterParams {
+  startDate?: string;
+  endDate?: string;
+  projectId?: number;
+  category?: string;
+  technology?: string;
+  status?: string;
+  keyword?: string;
+}
+
+export interface ReportPreviewResponse {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  startDate?: string;
+  endDate?: string;
+  totalEntries: number;
+  totalProjects: number;
+  entries: WorkEntryResponse[];
+}
+
 export interface ApiError {
   status?: number;
+  error?: string;
   message: string;
   timestamp?: string;
   path?: string;
+  fieldErrors?: Record<string, string>;
 }

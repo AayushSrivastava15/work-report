@@ -81,7 +81,7 @@ export const ProjectsPage: React.FC = () => {
       setIsCreateOpen(false);
       showNotification(`Project "${created.name}" created successfully!`);
     } catch (err: any) {
-      setFormErrors({ name: err.message || 'Failed to create project' });
+      setFormErrors({ name: err.fieldErrors?.name || err.message || 'Failed to create project' });
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +98,7 @@ export const ProjectsPage: React.FC = () => {
       setEditingProject(null);
       showNotification(`Project "${updated.name}" updated successfully!`);
     } catch (err: any) {
-      setFormErrors({ name: err.message || 'Failed to update project' });
+      setFormErrors({ name: err.fieldErrors?.name || err.message || 'Failed to update project' });
     } finally {
       setSubmitting(false);
     }

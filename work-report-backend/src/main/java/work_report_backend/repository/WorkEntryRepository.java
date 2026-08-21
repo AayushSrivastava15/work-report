@@ -99,4 +99,34 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
             ORDER BY COUNT(w) DESC
             """)
     List<DashboardStatusResponse> countWorkEntriesByStatusForUser(@Param("userId") Long userId);
+
+    // ── Phase 8 — Report Multi-Criteria Filtering ─────────────────────────────
+
+    @Query("""
+            SELECT w FROM WorkEntry w
+            WHERE w.user.id = :userId
+              AND (CAST(:startDate AS LocalDate) IS NULL OR w.date >= :startDate)
+              AND (CAST(:endDate AS LocalDate) IS NULL OR w.date <= :endDate)
+              AND (:projectId IS NULL OR w.project.id = :projectId)
+              AND (CAST(:category AS string) IS NULL OR LOWER(w.category) = LOWER(CAST(:category AS string)))
+              AND (CAST(:technology AS string) IS NULL OR LOWER(w.technology) = LOWER(CAST(:technology AS string)))
+              AND (CAST(:status AS string) IS NULL OR LOWER(w.status) = LOWER(CAST(:status AS string)))
+              AND (CAST(:keyword AS string) IS NULL OR (
+                    LOWER(w.title)       LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                 OR LOWER(w.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                 OR LOWER(w.category)    LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                 OR LOWER(w.technology)  LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+              ))
+            ORDER BY w.date DESC, w.id DESC
+            """)
+    List<WorkEntry> filterReportEntries(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("projectId") Long projectId,
+            @Param("category") String category,
+            @Param("technology") String technology,
+            @Param("status") String status,
+            @Param("keyword") String keyword
+    );
 }

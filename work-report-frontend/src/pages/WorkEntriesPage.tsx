@@ -247,9 +247,12 @@ export const WorkEntriesPage: React.FC = () => {
       );
       setEntries((prev) => [created, ...prev]);
       setIsCreateOpen(false);
-      showNotification(`Work entry "${created.title}" created successfully!`);
     } catch (err: any) {
-      setFormErrors({ form: err.message || 'Failed to create work entry' });
+      if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        setFormErrors(err.fieldErrors);
+      } else {
+        setFormErrors({ form: err.message || 'Failed to create work entry' });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -266,7 +269,11 @@ export const WorkEntriesPage: React.FC = () => {
       setEditingEntry(null);
       showNotification(`Work entry "${updated.title}" updated successfully!`);
     } catch (err: any) {
-      setFormErrors({ form: err.message || 'Failed to update work entry' });
+      if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        setFormErrors(err.fieldErrors);
+      } else {
+        setFormErrors({ form: err.message || 'Failed to update work entry' });
+      }
     } finally {
       setSubmitting(false);
     }

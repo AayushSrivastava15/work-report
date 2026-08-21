@@ -47,6 +47,10 @@ public class WorkEntryService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + projectId));
 
+        if (!project.getUser().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Project not found with id: " + projectId + " for user: " + userId);
+        }
+
         WorkEntry workEntry = new WorkEntry();
         workEntry.setDate(request.getDate());
         workEntry.setTitle(request.getTitle());
@@ -167,12 +171,15 @@ public class WorkEntryService {
     public List<WorkEntryResponse> filterByUserAndProjectAndDateRange(
             Long userId, Long projectId, LocalDate startDate, LocalDate endDate) {
         validateDateRange(startDate, endDate);
-        if (!userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("User not found with id: " + userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + projectId));
+
+        if (!project.getUser().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Project not found with id: " + projectId + " for user: " + userId);
         }
-        if (!projectRepository.existsById(projectId)) {
-            throw new ResourceNotFoundException("Project not found with id: " + projectId);
-        }
+
         return workEntryRepository
                 .findByUserIdAndProjectIdAndDateBetweenOrderByDateDesc(userId, projectId, startDate, endDate)
                 .stream()
@@ -219,10 +226,8 @@ public class WorkEntryService {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate.isAfter(endDate)) {
-            throw new InvalidDateRangeException(
-                    "startDate (" + startDate + ") must not be after endDate (" + endDate + ")"
-            );
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new InvalidDateRangeException("Start date cannot be after end date.");
         }
     }
 

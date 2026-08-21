@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public class ProjectRequest {
 
-    @NotBlank(message = "Project name must not be blank")
+    @NotBlank(message = "Project name is required")
     private String name;
 
     private String description;

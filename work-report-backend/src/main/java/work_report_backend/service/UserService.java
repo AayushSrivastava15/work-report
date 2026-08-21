@@ -1,10 +1,12 @@
 package work_report_backend.service;
 
 import org.springframework.stereotype.Service;
+import work_report_backend.dto.LoginRequest;
 import work_report_backend.dto.UserRequest;
 import work_report_backend.dto.UserResponse;
 import work_report_backend.entity.User;
 import work_report_backend.exception.DuplicateResourceException;
+import work_report_backend.exception.InvalidCredentialsException;
 import work_report_backend.exception.ResourceNotFoundException;
 import work_report_backend.repository.UserRepository;
 
@@ -19,6 +21,18 @@ public class UserService {
 
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
+    }
+
+    // Authenticate / Login User
+    public UserResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
+        if (!user.getPassword().equals(request.getPassword())) {
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
+
+        return convertToResponse(user);
     }
 
     // Create User

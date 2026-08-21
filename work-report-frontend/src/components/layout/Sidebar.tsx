@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, FileText, X } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, FileText, FileBarChart, X } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,6 +23,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Work Entries',
       path: '/work-entries',
       icon: <FileText className="w-5 h-5" />,
+    },
+    {
+      label: 'Reports',
+      path: '/reports',
+      icon: <FileBarChart className="w-5 h-5" />,
     },
   ];
 
@@ -86,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* System info footer */}
         <div className="p-4 border-t border-slate-100 text-xs text-slate-400">
           <div className="font-medium text-slate-600">Work Report v1.0</div>
-          <div>Phase 6 — Frontend UI</div>
+          <div>Phase 8 — Report Preview & Export</div>
         </div>
       </aside>
     </>

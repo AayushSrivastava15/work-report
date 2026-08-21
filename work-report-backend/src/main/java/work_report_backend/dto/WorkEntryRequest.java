@@ -2,26 +2,31 @@ package work_report_backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
 
 public class WorkEntryRequest {
 
-    @NotNull(message = "Date must not be null")
+    @NotNull(message = "Date is required")
     private LocalDate date;
 
-    @NotBlank(message = "Title must not be blank")
+    @NotBlank(message = "Title is required")
     private String title;
 
-    @NotBlank(message = "Description must not be blank")
+    @NotBlank(message = "Description is required")
     private String description;
 
-    @NotBlank(message = "Category must not be blank")
+    @NotBlank(message = "Category is required")
     private String category;
 
-    @NotBlank(message = "Technology must not be blank")
+    @NotBlank(message = "Technology is required")
     private String technology;
 
-    @NotBlank(message = "Status must not be blank")
+    @NotBlank(message = "Status is required")
+    @Pattern(
+            regexp = "^(Completed|In Progress|Pending|Blocked)$",
+            message = "Status must be one of: Completed, In Progress, Pending, Blocked"
+    )
     private String status;
 
     public WorkEntryRequest() {
