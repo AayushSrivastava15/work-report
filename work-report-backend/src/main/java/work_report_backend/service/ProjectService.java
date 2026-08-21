@@ -1,6 +1,11 @@
 package work_report_backend.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import work_report_backend.dto.PageResponse;
 import work_report_backend.dto.ProjectRequest;
 import work_report_backend.dto.ProjectResponse;
 import work_report_backend.entity.Project;
@@ -28,7 +33,6 @@ public class ProjectService {
 
     // Create Project
     public ProjectResponse createProject(Long userId, ProjectRequest request) {
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
@@ -37,17 +41,25 @@ public class ProjectService {
                 request.getDescription(),
                 user
         );
+        project.setOrganization(user.getOrganization());
 
         Project saved = projectRepository.save(project);
         return convertToResponse(saved);
     }
 
-    // Get All Projects
+    // Get All Projects (Unpaginated)
     public List<ProjectResponse> getAllProjects() {
         return projectRepository.findAll()
                 .stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
+    }
+
+    // Get All Projects (Paginated)
+    public PageResponse<ProjectResponse> getAllProjects(int page, int size) {
+        Pageable pageable = createPageable(page, size, defaultSort());
+        Page<Project> projectPage = projectRepository.findAll(pageable);
+        return PageResponse.of(projectPage, this::convertToResponse);
     }
 
     // Get Project by ID
@@ -59,7 +71,6 @@ public class ProjectService {
 
     // Update Project
     public ProjectResponse updateProject(Long id, ProjectRequest request) {
-
         Project existingProject = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + id));
 
@@ -72,17 +83,14 @@ public class ProjectService {
 
     // Delete Project
     public void deleteProject(Long id) {
-
         if (!projectRepository.existsById(id)) {
             throw new ResourceNotFoundException("Project not found with id: " + id);
         }
-
         projectRepository.deleteById(id);
     }
 
-    // Get Projects by User
+    // Get Projects by User (Unpaginated)
     public List<ProjectResponse> getProjectsByUser(Long userId) {
-
         if (!userRepository.existsById(userId)) {
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
@@ -91,6 +99,34 @@ public class ProjectService {
                 .stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
+    }
+
+    // Get Projects by User (Paginated)
+    public PageResponse<ProjectResponse> getProjectsByUser(Long userId, int page, int size) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+
+        Pageable pageable = createPageable(page, size, defaultSort());
+        Page<Project> projectPage = projectRepository.findByUserId(userId, pageable);
+        return PageResponse.of(projectPage, this::convertToResponse);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private Pageable createPageable(int page, int size, Sort sort) {
+        if (page < 0) {
+            throw new IllegalArgumentException("Page index must not be less than zero.");
+        }
+        if (size <= 0) {
+            throw new IllegalArgumentException("Page size must be greater than zero.");
+        }
+        int effectiveSize = Math.min(size, 100);
+        return PageRequest.of(page, effectiveSize, sort);
+    }
+
+    private Sort defaultSort() {
+        return Sort.by(Sort.Order.asc("id"));
     }
 
     // Convert Entity -> Response DTO

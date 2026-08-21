@@ -1,20 +1,35 @@
 import { request } from './apiClient';
-import type { WorkEntryRequest, WorkEntryResponse } from '../types';
+import type { PaginatedResponse, WorkEntryRequest, WorkEntryResponse } from '../types';
 
 export const workEntryApi = {
-  getWorkEntriesByUser: (userId: number): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/user/${userId}`);
+  getWorkEntriesByUser: (
+    userId: number,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/user/${userId}?page=${page}&size=${size}`
+    );
   },
 
-  getAllWorkEntries: (): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>('/work-entries');
+  getAllWorkEntries: (
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries?page=${page}&size=${size}`
+    );
   },
 
   getWorkEntryById: (id: number): Promise<WorkEntryResponse> => {
     return request<WorkEntryResponse>(`/work-entries/${id}`);
   },
 
-  createWorkEntry: (userId: number, projectId: number, data: WorkEntryRequest): Promise<WorkEntryResponse> => {
+  createWorkEntry: (
+    userId: number,
+    projectId: number,
+    data: WorkEntryRequest
+  ): Promise<WorkEntryResponse> => {
     return request<WorkEntryResponse>(`/work-entries/user/${userId}/project/${projectId}`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -34,42 +49,124 @@ export const workEntryApi = {
     });
   },
 
-  searchWorkEntries: (keyword: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/search?keyword=${encodeURIComponent(keyword)}`);
+  searchWorkEntries: (
+    keyword: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/search?keyword=${encodeURIComponent(keyword)}&page=${page}&size=${size}`
+    );
   },
 
-  filterByDateRange: (startDate: string, endDate: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter?startDate=${startDate}&endDate=${endDate}`);
+  filterByDateRange: (
+    startDate: string,
+    endDate: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter?startDate=${startDate}&endDate=${endDate}&page=${page}&size=${size}`
+    );
   },
 
-  filterByUserAndDateRange: (userId: number, startDate: string, endDate: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter/user/${userId}?startDate=${startDate}&endDate=${endDate}`);
+  filterByUserAndDateRange: (
+    userId: number,
+    startDate: string,
+    endDate: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/user/${userId}?startDate=${startDate}&endDate=${endDate}&page=${page}&size=${size}`
+    );
   },
 
-  filterByProjectAndDateRange: (projectId: number, startDate: string, endDate: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter/project/${projectId}?startDate=${startDate}&endDate=${endDate}`);
+  filterByProjectAndDateRange: (
+    projectId: number,
+    startDate: string,
+    endDate: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/project/${projectId}?startDate=${startDate}&endDate=${endDate}&page=${page}&size=${size}`
+    );
   },
 
   filterByUserAndProjectAndDateRange: (
     userId: number,
     projectId: number,
     startDate: string,
-    endDate: string
-  ): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(
-      `/work-entries/filter/user/${userId}/project/${projectId}?startDate=${startDate}&endDate=${endDate}`
+    endDate: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/user/${userId}/project/${projectId}?startDate=${startDate}&endDate=${endDate}&page=${page}&size=${size}`
     );
   },
 
-  filterByCategory: (category: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter/category/${encodeURIComponent(category)}`);
+  filterByCategory: (
+    category: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/category/${encodeURIComponent(category)}?page=${page}&size=${size}`
+    );
   },
 
-  filterByTechnology: (technology: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter/technology/${encodeURIComponent(technology)}`);
+  filterByTechnology: (
+    technology: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/technology/${encodeURIComponent(technology)}?page=${page}&size=${size}`
+    );
   },
 
-  filterByStatus: (status: string): Promise<WorkEntryResponse[]> => {
-    return request<WorkEntryResponse[]>(`/work-entries/filter/status/${encodeURIComponent(status)}`);
+  filterByStatus: (
+    status: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/status/${encodeURIComponent(status)}?page=${page}&size=${size}`
+    );
+  },
+
+  // Lifecycle Transitions
+  submit: (id: number): Promise<WorkEntryResponse> => {
+    return request<WorkEntryResponse>(`/work-entries/${id}/submit`, {
+      method: 'PUT',
+    });
+  },
+
+  withdraw: (id: number): Promise<WorkEntryResponse> => {
+    return request<WorkEntryResponse>(`/work-entries/${id}/withdraw`, {
+      method: 'PUT',
+    });
+  },
+
+  approve: (id: number): Promise<WorkEntryResponse> => {
+    return request<WorkEntryResponse>(`/work-entries/${id}/approve`, {
+      method: 'PUT',
+    });
+  },
+
+  reject: (id: number, reason?: string): Promise<WorkEntryResponse> => {
+    return request<WorkEntryResponse>(`/work-entries/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason: reason || '' }),
+    });
+  },
+
+  resubmit: (id: number, data: WorkEntryRequest): Promise<WorkEntryResponse> => {
+    return request<WorkEntryResponse>(`/work-entries/${id}/resubmit`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 };

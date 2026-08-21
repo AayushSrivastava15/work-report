@@ -3,6 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
+import { Breadcrumbs } from '../common/Breadcrumbs';
+
 export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -12,6 +14,7 @@ export const Layout: React.FC = () => {
       <div className="flex flex-1">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+          <Breadcrumbs />
           <Outlet />
         </main>
       </div>

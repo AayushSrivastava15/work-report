@@ -1,13 +1,24 @@
 import { request } from './apiClient';
-import type { ProjectRequest, ProjectResponse } from '../types';
+import type { PaginatedResponse, ProjectRequest, ProjectResponse } from '../types';
 
 export const projectApi = {
-  getProjectsByUser: (userId: number): Promise<ProjectResponse[]> => {
-    return request<ProjectResponse[]>(`/projects/user/${userId}`);
+  getProjectsByUser: (
+    userId: number,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<ProjectResponse>> => {
+    return request<PaginatedResponse<ProjectResponse>>(
+      `/projects/user/${userId}?page=${page}&size=${size}`
+    );
   },
 
-  getAllProjects: (): Promise<ProjectResponse[]> => {
-    return request<ProjectResponse[]>('/projects');
+  getAllProjects: (
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<ProjectResponse>> => {
+    return request<PaginatedResponse<ProjectResponse>>(
+      `/projects?page=${page}&size=${size}`
+    );
   },
 
   getProjectById: (id: number): Promise<ProjectResponse> => {

@@ -2,12 +2,57 @@ export interface UserResponse {
   id: number;
   name: string;
   email: string;
+  role: string;
+  status: string;
+  department?: string;
+  designation?: string;
+  employeeId?: string;
+  rejectionReason?: string;
+  approvedAt?: string;
+  approvedBy?: string;
   createdAt: string;
+  organizationId?: number;
+  organizationName?: string;
+  organizationCode?: string;
+  organizationType?: string;
+}
+
+export interface UserRequest {
+  name: string;
+  email: string;
+  password?: string;
+  department?: string;
+  designation?: string;
+  employeeId?: string;
+  role?: string;
+  status?: string;
+  accountType?: string;
+  companyName?: string;
+  organizationCode?: string;
+  registrationMode?: string;
+}
+
+export interface AdminUserStatsResponse {
+  totalUsers: number;
+  activeUsers: number;
+  pendingUsers: number;
+  suspendedUsers: number;
+  rejectedUsers: number;
+  organizationName?: string;
+  organizationCode?: string;
+  organizationType?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  tokenType: string;
+  expiresIn: number;
+  user: UserResponse;
 }
 
 export interface ProjectResponse {
@@ -33,6 +78,13 @@ export interface WorkEntryResponse {
   status: string;
   projectId: number;
   projectName: string;
+  submittedAt?: string;
+  reviewerId?: number;
+  reviewerName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WorkEntryRequest {
@@ -103,4 +155,14 @@ export interface ApiError {
   timestamp?: string;
   path?: string;
   fieldErrors?: Record<string, string>;
+}
+
+export interface PaginatedResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
 }

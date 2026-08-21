@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import { projectApi } from '../api/projectApi';
 import { reportApi } from '../api/reportApi';
 import { downloadBlob } from '../utils/downloadHelper';
-import type { ProjectResponse, ReportFilterParams, ReportPreviewResponse } from '../types';
+import type { ProjectResponse, ReportFilterParams, ReportPreviewResponse, WorkEntryResponse } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
+import { WorkEntryDetailsModal } from '../components/work-entries/WorkEntryDetailsModal';
 import {
   FileBarChart,
   Filter,
@@ -20,6 +22,7 @@ import {
   CheckCircle2,
   User,
   Loader2,
+  Eye,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -36,6 +39,7 @@ const STATUSES = ['Completed', 'In Progress', 'Pending', 'Blocked'];
 
 export const ReportsPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
+  const { showSuccess, showError, showInfo } = useToast();
 
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [report, setReport] = useState<ReportPreviewResponse | null>(null);
@@ -60,14 +64,17 @@ export const ReportsPage: React.FC = () => {
   const [exportingDocx, setExportingDocx] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
 
+  // Selected entry for Details Modal
+  const [selectedEntry, setSelectedEntry] = useState<WorkEntryResponse | null>(null);
+
   // Load user projects on mount
   useEffect(() => {
     const init = async () => {
       if (!currentUserId) return;
       try {
         setInitialLoading(true);
-        const userProjects = await projectApi.getProjectsByUser(currentUserId);
-        setProjects(userProjects);
+        const userProjects = await projectApi.getProjectsByUser(currentUserId, 0, 100);
+        setProjects(userProjects.content);
 
         // Fetch initial report preview (all entries)
         const initialReport = await reportApi.getReportPreview(currentUserId, {});
@@ -143,10 +150,15 @@ export const ReportsPage: React.FC = () => {
     try {
       setExportingPdf(true);
       setError(null);
+      showInfo('Generating PDF work report...', 'Export Started');
       const { blob, filename } = await reportApi.exportPdf(currentUserId, appliedFilters);
-      downloadBlob(blob, filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+      const finalName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
     } catch (err: any) {
-      setError(err.message || 'Unable to export PDF report. Please try again.');
+      const msg = err.message || 'Unable to export PDF report. Please try again.';
+      setError(msg);
+      showError(msg, 'Export Failed');
     } finally {
       setExportingPdf(false);
     }
@@ -157,10 +169,15 @@ export const ReportsPage: React.FC = () => {
     try {
       setExportingDocx(true);
       setError(null);
+      showInfo('Generating Word (.docx) work report...', 'Export Started');
       const { blob, filename } = await reportApi.exportDocx(currentUserId, appliedFilters);
-      downloadBlob(blob, filename.endsWith('.docx') ? filename : `${filename}.docx`);
+      const finalName = filename.endsWith('.docx') ? filename : `${filename}.docx`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
     } catch (err: any) {
-      setError(err.message || 'Unable to export Word report. Please try again.');
+      const msg = err.message || 'Unable to export Word report. Please try again.';
+      setError(msg);
+      showError(msg, 'Export Failed');
     } finally {
       setExportingDocx(false);
     }
@@ -171,10 +188,15 @@ export const ReportsPage: React.FC = () => {
     try {
       setExportingExcel(true);
       setError(null);
+      showInfo('Generating Excel (.xlsx) work report...', 'Export Started');
       const { blob, filename } = await reportApi.exportExcel(currentUserId, appliedFilters);
-      downloadBlob(blob, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+      const finalName = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
     } catch (err: any) {
-      setError(err.message || 'Unable to export Excel report. Please try again.');
+      const msg = err.message || 'Unable to export Excel report. Please try again.';
+      setError(msg);
+      showError(msg, 'Export Failed');
     } finally {
       setExportingExcel(false);
     }
@@ -534,18 +556,23 @@ export const ReportsPage: React.FC = () => {
                     <th className="px-5 py-3 whitespace-nowrap">Category</th>
                     <th className="px-5 py-3 whitespace-nowrap">Technology</th>
                     <th className="px-5 py-3 whitespace-nowrap">Status</th>
+                    <th className="px-5 py-3 whitespace-nowrap text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {report?.entries?.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr
+                      key={entry.id}
+                      onClick={() => setSelectedEntry(entry)}
+                      className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                    >
                       <td className="px-5 py-3.5 whitespace-nowrap font-medium text-slate-800">
                         {entry.date}
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap font-medium text-blue-600">
                         {entry.projectName || '—'}
                       </td>
-                      <td className="px-5 py-3.5 font-semibold text-slate-800 max-w-xs truncate">
+                      <td className="px-5 py-3.5 font-semibold text-slate-800 max-w-xs truncate group-hover:text-blue-600 transition-colors">
                         {entry.title}
                       </td>
                       <td className="px-5 py-3.5 text-slate-600 max-w-sm line-clamp-2 text-xs">
@@ -556,7 +583,7 @@ export const ReportsPage: React.FC = () => {
                           {entry.category}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600">
+                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono">
                         {entry.technology || '—'}
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
@@ -574,6 +601,16 @@ export const ReportsPage: React.FC = () => {
                           {entry.status}
                         </span>
                       </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setSelectedEntry(entry)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                          title="View Details"
+                          aria-label="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -582,6 +619,13 @@ export const ReportsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Details View Modal */}
+      <WorkEntryDetailsModal
+        entry={selectedEntry}
+        isOpen={!!selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+      />
     </div>
   );
 };

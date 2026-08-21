@@ -8,6 +8,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import work_report_backend.dto.LoginRequest;
+import work_report_backend.dto.LoginResponse;
 import work_report_backend.dto.UserResponse;
 import work_report_backend.exception.InvalidCredentialsException;
 import work_report_backend.service.UserService;
@@ -29,17 +30,22 @@ class AuthControllerTest {
     @Test
     void testLoginSuccess() {
         LoginRequest request = new LoginRequest("test@example.com", "password123");
-        UserResponse mockResponse = new UserResponse(1L, "Test User", "test@example.com", LocalDateTime.now());
+        UserResponse user = new UserResponse(1L, "Test User", "test@example.com", LocalDateTime.now());
+        LoginResponse mockResponse = new LoginResponse("mock.jwt.token", "Bearer", 3600000L, user);
 
         when(userService.login(any(LoginRequest.class))).thenReturn(mockResponse);
 
-        ResponseEntity<UserResponse> response = authController.login(request);
+        ResponseEntity<LoginResponse> response = authController.login(request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("Test User", response.getBody().getName());
-        assertEquals("test@example.com", response.getBody().getEmail());
-        assertEquals(1L, response.getBody().getId());
+        assertEquals("mock.jwt.token", response.getBody().getToken());
+        assertEquals("Bearer", response.getBody().getTokenType());
+        assertEquals(3600000L, response.getBody().getExpiresIn());
+        assertNotNull(response.getBody().getUser());
+        assertEquals("Test User", response.getBody().getUser().getName());
+        assertEquals("test@example.com", response.getBody().getUser().getEmail());
+        assertEquals(1L, response.getBody().getUser().getId());
     }
 
     @Test

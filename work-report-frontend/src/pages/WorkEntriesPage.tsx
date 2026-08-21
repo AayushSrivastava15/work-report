@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import { workEntryApi } from '../api/workEntryApi';
 import { projectApi } from '../api/projectApi';
 import type { ProjectResponse, WorkEntryRequest, WorkEntryResponse } from '../types';
@@ -7,6 +9,8 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
 import { Modal } from '../components/common/Modal';
+import { Pagination } from '../components/common/Pagination';
+import { WorkEntryDetailsModal } from '../components/work-entries/WorkEntryDetailsModal';
 import {
   Plus,
   Search,
@@ -16,19 +20,42 @@ import {
   Trash2,
   Calendar,
   RotateCcw,
+  Eye,
+  Send,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  FileEdit,
+  Check,
+  FolderKanban
 } from 'lucide-react';
 
 const CATEGORIES = ['Development', 'Bug Fix', 'Testing', 'Documentation', 'Code Review', 'DevOps', 'Research'];
-const STATUSES = ['Completed', 'In Progress', 'Pending', 'Blocked'];
+
+type StatusTab = 'ALL' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export const WorkEntriesPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const { showSuccess, showError } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [entries, setEntries] = useState<WorkEntryResponse[]>([]);
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Status Tab selection
+  const [activeTab, setActiveTab] = useState<StatusTab>('ALL');
+
+  // Pagination state
+  const [page, setPage] = useState<number>(0);
+  const [size, setSize] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [totalElements, setTotalElements] = useState<number>(0);
+
+  // Mode state: 'all' | 'search' | 'filter'
+  const [mode, setMode] = useState<'all' | 'search' | 'filter'>('all');
 
   // Search & Filter state
   const [searchKeyword, setSearchKeyword] = useState<string>('');
@@ -37,14 +64,20 @@ export const WorkEntriesPage: React.FC = () => {
   const [filterProjectId, setFilterProjectId] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterTechnology, setFilterTechnology] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
   const [showFilterDrawer, setShowFilterDrawer] = useState<boolean>(false);
-  const [activeFilterSummary, setActiveFilterSummary] = useState<string | null>(null);
 
-  // Modal States
+  // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<WorkEntryResponse | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<WorkEntryResponse | null>(null);
+  const [selectedEntryForDetails, setSelectedEntryForDetails] = useState<WorkEntryResponse | null>(null);
+
+  // Workflow Action Modals
+  const [submittingEntry, setSubmittingEntry] = useState<WorkEntryResponse | null>(null);
+  const [withdrawingEntry, setWithdrawingEntry] = useState<WorkEntryResponse | null>(null);
+  const [approvingEntry, setApprovingEntry] = useState<WorkEntryResponse | null>(null);
+  const [rejectingEntry, setRejectingEntry] = useState<WorkEntryResponse | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState<string>('');
 
   // Form States
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
@@ -54,24 +87,73 @@ export const WorkEntriesPage: React.FC = () => {
     description: '',
     category: 'Development',
     technology: '',
-    status: 'Completed',
+    status: 'DRAFT',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Load Projects and Entries
-  const fetchInitialData = async () => {
+  // Load Projects (for dropdowns)
+  const fetchProjects = async () => {
+    if (!currentUserId) return;
+    try {
+      const projs = await projectApi.getProjectsByUser(currentUserId, 0, 100);
+      setProjects(projs.content);
+    } catch {
+      // Ignored
+    }
+  };
+
+  const fetchEntries = async (
+    targetPage = page,
+    targetSize = size,
+    targetTab = activeTab,
+    targetMode = mode,
+    keyword = searchKeyword
+  ) => {
     if (!currentUserId) return;
     try {
       setLoading(true);
       setError(null);
-      const [projs, entriesData] = await Promise.all([
-        projectApi.getProjectsByUser(currentUserId),
-        workEntryApi.getWorkEntriesByUser(currentUserId),
-      ]);
-      setProjects(projs);
-      setEntries(entriesData);
-      setActiveFilterSummary(null);
+
+      let data;
+      if (targetTab !== 'ALL') {
+        data = await workEntryApi.filterByStatus(targetTab, targetPage, targetSize);
+      } else if (targetMode === 'search' && keyword.trim()) {
+        data = await workEntryApi.searchWorkEntries(keyword.trim(), targetPage, targetSize);
+      } else if (targetMode === 'filter') {
+        if (filterStartDate && filterEndDate && filterProjectId) {
+          data = await workEntryApi.filterByUserAndProjectAndDateRange(
+            currentUserId,
+            Number(filterProjectId),
+            filterStartDate,
+            filterEndDate,
+            targetPage,
+            targetSize
+          );
+        } else if (filterStartDate && filterEndDate) {
+          data = await workEntryApi.filterByUserAndDateRange(
+            currentUserId,
+            filterStartDate,
+            filterEndDate,
+            targetPage,
+            targetSize
+          );
+        } else if (filterCategory) {
+          data = await workEntryApi.filterByCategory(filterCategory, targetPage, targetSize);
+        } else if (filterTechnology) {
+          data = await workEntryApi.filterByTechnology(filterTechnology, targetPage, targetSize);
+        } else {
+          data = await workEntryApi.getWorkEntriesByUser(currentUserId, targetPage, targetSize);
+        }
+      } else {
+        data = await workEntryApi.getWorkEntriesByUser(currentUserId, targetPage, targetSize);
+      }
+
+      setEntries(data.content);
+      setPage(data.page);
+      setSize(data.size);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
     } catch (err: any) {
       setError(err.message || 'Failed to load work entries');
     } finally {
@@ -80,126 +162,98 @@ export const WorkEntriesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchInitialData();
+    fetchProjects();
   }, [currentUserId]);
 
-  const showNotification = (msg: string) => {
-    setSuccessMessage(msg);
-    setTimeout(() => setSuccessMessage(null), 4000);
+  useEffect(() => {
+    fetchEntries(page, size, activeTab, mode, searchKeyword);
+  }, [currentUserId, page, size, activeTab]);
+
+  // Handle URL query triggers: ?new=1, ?projectId=..., ?edit=..., ?status=...
+  useEffect(() => {
+    const isNew = searchParams.get('new') === '1' || searchParams.get('new') === 'true';
+    const projId = searchParams.get('projectId');
+    const editId = searchParams.get('edit');
+    const statusParam = searchParams.get('status');
+
+    if (isNew) {
+      handleOpenCreate(projId ? Number(projId) : undefined);
+      setSearchParams({}, { replace: true });
+    } else if (editId) {
+      workEntryApi.getWorkEntryById(Number(editId)).then((entry) => {
+        handleOpenEdit(entry);
+      }).catch(() => {});
+      setSearchParams({}, { replace: true });
+    } else if (statusParam) {
+      const upper = statusParam.toUpperCase();
+      if (['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'].includes(upper)) {
+        setActiveTab(upper as StatusTab);
+      }
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, projects]);
+
+  const handleTabChange = (tab: StatusTab) => {
+    setActiveTab(tab);
+    setPage(0);
+    setSearchKeyword('');
+    setMode('all');
   };
 
-  // ── SEARCH HANDLER ──────────────────────────────────────────────────────────
-  const handleSearch = async (e: React.FormEvent) => {
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchEntries(newPage, size, activeTab, mode, searchKeyword);
+  };
+
+  const handleSizeChange = (newSize: number) => {
+    setSize(newSize);
+    setPage(0);
+    fetchEntries(0, newSize, activeTab, mode, searchKeyword);
+  };
+
+  // ── SEARCH & FILTER HANDLERS ───────────────────────────────────────────────
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchKeyword.trim()) {
-      fetchInitialData();
+      handleResetFilters();
       return;
     }
-    try {
-      setLoading(true);
-      setError(null);
-      const results = await workEntryApi.searchWorkEntries(searchKeyword.trim());
-      setEntries(results);
-      setActiveFilterSummary(`Search keyword: "${searchKeyword.trim()}"`);
-    } catch (err: any) {
-      setError(err.message || 'Search failed');
-    } finally {
-      setLoading(false);
-    }
+    setActiveTab('ALL');
+    setMode('search');
+    setPage(0);
+    fetchEntries(0, size, 'ALL', 'search', searchKeyword);
   };
 
-  const handleClearSearch = () => {
-    setSearchKeyword('');
-    fetchInitialData();
-  };
-
-  // ── FILTER HANDLER ──────────────────────────────────────────────────────────
-  const handleApplyFilters = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      let results: WorkEntryResponse[] = [];
-      const summaries: string[] = [];
-
-      // Determine which Phase 4 endpoint to call based on selected criteria
-      if (filterStartDate && filterEndDate && filterProjectId) {
-        // User + Project + Date range
-        results = await workEntryApi.filterByUserAndProjectAndDateRange(
-          currentUserId,
-          Number(filterProjectId),
-          filterStartDate,
-          filterEndDate
-        );
-        const pName = projects.find((p) => p.id === Number(filterProjectId))?.name || 'Project';
-        summaries.push(`Project: ${pName}`, `Date: ${filterStartDate} to ${filterEndDate}`);
-      } else if (filterStartDate && filterEndDate) {
-        // User + Date range
-        results = await workEntryApi.filterByUserAndDateRange(
-          currentUserId,
-          filterStartDate,
-          filterEndDate
-        );
-        summaries.push(`Date: ${filterStartDate} to ${filterEndDate}`);
-      } else if (filterCategory) {
-        // Category filter
-        results = await workEntryApi.filterByCategory(filterCategory);
-        summaries.push(`Category: ${filterCategory}`);
-      } else if (filterTechnology) {
-        // Technology filter
-        results = await workEntryApi.filterByTechnology(filterTechnology);
-        summaries.push(`Technology: ${filterTechnology}`);
-      } else if (filterStatus) {
-        // Status filter
-        results = await workEntryApi.filterByStatus(filterStatus);
-        summaries.push(`Status: ${filterStatus}`);
-      } else {
-        // No specific filter, load user's entries
-        results = await workEntryApi.getWorkEntriesByUser(currentUserId);
-      }
-
-      setEntries(results);
-      setActiveFilterSummary(summaries.length > 0 ? summaries.join(' | ') : null);
-      setShowFilterDrawer(false);
-    } catch (err: any) {
-      setError(err.message || 'Filtering failed');
-    } finally {
-      setLoading(false);
-    }
+  const handleApplyFilters = () => {
+    setShowFilterDrawer(false);
+    setActiveTab('ALL');
+    setMode('filter');
+    setPage(0);
+    fetchEntries(0, size, 'ALL', 'filter', searchKeyword);
   };
 
   const handleResetFilters = () => {
+    setSearchKeyword('');
     setFilterStartDate('');
     setFilterEndDate('');
     setFilterProjectId('');
     setFilterCategory('');
     setFilterTechnology('');
-    setFilterStatus('');
-    fetchInitialData();
+    setMode('all');
+    setPage(0);
+    fetchEntries(0, size, activeTab, 'all', '');
   };
 
-  // ── FORM VALIDATION ─────────────────────────────────────────────────────────
-  const validateForm = (isCreating: boolean): boolean => {
+  const validateForm = (isNew: boolean): boolean => {
     const errors: Record<string, string> = {};
-    if (isCreating && !selectedProjectId) {
-      errors.projectId = 'Please select a project';
-    }
-    if (!formData.date) {
-      errors.date = 'Date is required';
-    }
-    if (!formData.title.trim()) {
-      errors.title = 'Title is required';
-    }
-    if (!formData.description.trim()) {
-      errors.description = 'Description is required';
-    }
-    if (!formData.category.trim()) {
-      errors.category = 'Category is required';
-    }
-    if (!formData.technology.trim()) {
-      errors.technology = 'Technology is required';
-    }
-    if (!formData.status.trim()) {
-      errors.status = 'Status is required';
+
+    if (!formData.date.trim()) errors.date = 'Date is required';
+    if (!formData.title.trim()) errors.title = 'Title is required';
+    if (!formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.technology.trim()) errors.technology = 'Technology is required';
+
+    if (isNew && !selectedProjectId) {
+      errors.projectId = 'Project selection is required';
     }
 
     setFormErrors(errors);
@@ -207,18 +261,27 @@ export const WorkEntriesPage: React.FC = () => {
   };
 
   // ── CREATE / EDIT / DELETE ──────────────────────────────────────────────────
-  const handleOpenCreate = () => {
+  const handleOpenCreate = (preselectedProjectId?: number) => {
     setFormData({
       date: new Date().toISOString().split('T')[0],
       title: '',
       description: '',
       category: 'Development',
       technology: '',
-      status: 'Completed',
+      status: 'DRAFT',
     });
-    setSelectedProjectId(projects[0]?.id || '');
+    setSelectedProjectId(preselectedProjectId || projects[0]?.id || '');
     setFormErrors({});
     setIsCreateOpen(true);
+  };
+
+  const handleCloseCreate = () => {
+    if (formData.title.trim() || formData.description.trim() || formData.technology.trim()) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+        return;
+      }
+    }
+    setIsCreateOpen(false);
   };
 
   const handleOpenEdit = (entry: WorkEntryResponse) => {
@@ -234,48 +297,91 @@ export const WorkEntriesPage: React.FC = () => {
     setFormErrors({});
   };
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCloseEdit = () => {
+    if (
+      editingEntry &&
+      (formData.title !== editingEntry.title ||
+        formData.description !== editingEntry.description ||
+        formData.technology !== editingEntry.technology ||
+        formData.category !== editingEntry.category ||
+        formData.date !== editingEntry.date)
+    ) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+        return;
+      }
+    }
+    setEditingEntry(null);
+  };
+
+  const handleSaveEntry = async (statusTarget: 'DRAFT' | 'PENDING') => {
     if (!validateForm(true)) return;
 
     try {
-      setSubmitting(true);
+      setActionLoading(true);
+      const payload: WorkEntryRequest = {
+        ...formData,
+        status: statusTarget,
+      };
+
       const created = await workEntryApi.createWorkEntry(
         currentUserId,
         Number(selectedProjectId),
-        formData
+        payload
       );
-      setEntries((prev) => [created, ...prev]);
+
+      if (statusTarget === 'PENDING') {
+        showSuccess(`Work report "${created.title}" submitted for review!`);
+      } else {
+        showSuccess(`Draft "${created.title}" saved successfully!`);
+      }
+
       setIsCreateOpen(false);
+      fetchEntries(0, size, activeTab, mode, searchKeyword);
     } catch (err: any) {
       if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
         setFormErrors(err.fieldErrors);
       } else {
-        setFormErrors({ form: err.message || 'Failed to create work entry' });
+        const msg = err.message || 'Failed to save work entry';
+        setFormErrors({ form: msg });
+        showError(msg);
       }
     } finally {
-      setSubmitting(false);
+      setActionLoading(false);
     }
   };
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdateEntry = async (statusTarget?: 'DRAFT' | 'PENDING') => {
     if (!editingEntry || !validateForm(false)) return;
 
     try {
-      setSubmitting(true);
-      const updated = await workEntryApi.updateWorkEntry(editingEntry.id, formData);
-      setEntries((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setActionLoading(true);
+      const isRejected = (editingEntry.status || '').toUpperCase() === 'REJECTED';
+
+      let updated: WorkEntryResponse;
+      if (isRejected && statusTarget === 'PENDING') {
+        updated = await workEntryApi.resubmit(editingEntry.id, formData);
+        showSuccess(`Work report "${updated.title}" resubmitted for review!`);
+      } else {
+        const payload: WorkEntryRequest = {
+          ...formData,
+          status: statusTarget || formData.status,
+        };
+        updated = await workEntryApi.updateWorkEntry(editingEntry.id, payload);
+        showSuccess(`Work entry "${updated.title}" updated successfully!`);
+      }
+
       setEditingEntry(null);
-      showNotification(`Work entry "${updated.title}" updated successfully!`);
+      fetchEntries(page, size, activeTab, mode, searchKeyword);
     } catch (err: any) {
       if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
         setFormErrors(err.fieldErrors);
       } else {
-        setFormErrors({ form: err.message || 'Failed to update work entry' });
+        const msg = err.message || 'Failed to update work entry';
+        setFormErrors({ form: msg });
+        showError(msg);
       }
     } finally {
-      setSubmitting(false);
+      setActionLoading(false);
     }
   };
 
@@ -283,113 +389,260 @@ export const WorkEntriesPage: React.FC = () => {
     if (!deletingEntry) return;
 
     try {
-      setSubmitting(true);
+      setActionLoading(true);
       await workEntryApi.deleteWorkEntry(deletingEntry.id);
-      setEntries((prev) => prev.filter((item) => item.id !== deletingEntry.id));
-      showNotification(`Work entry "${deletingEntry.title}" deleted.`);
+      showSuccess(`Work entry "${deletingEntry.title}" deleted.`);
       setDeletingEntry(null);
+
+      const newPage = entries.length === 1 && page > 0 ? page - 1 : page;
+      fetchEntries(newPage, size, activeTab, mode, searchKeyword);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete work entry');
+      const msg = err.message || 'Failed to delete work entry';
+      setError(msg);
+      showError(msg);
       setDeletingEntry(null);
     } finally {
-      setSubmitting(false);
+      setActionLoading(false);
     }
   };
 
+  // ── LIFECYCLE WORKFLOW HANDLERS ───────────────────────────────────────────
+
+  const handleSubmitConfirm = async () => {
+    if (!submittingEntry) return;
+    try {
+      setActionLoading(true);
+      await workEntryApi.submit(submittingEntry.id);
+      showSuccess(`Report "${submittingEntry.title}" submitted for review.`);
+      setSubmittingEntry(null);
+      fetchEntries(page, size, activeTab, mode, searchKeyword);
+    } catch (err: any) {
+      showError(err.message || 'Failed to submit report.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleWithdrawConfirm = async () => {
+    if (!withdrawingEntry) return;
+    try {
+      setActionLoading(true);
+      await workEntryApi.withdraw(withdrawingEntry.id);
+      showSuccess(`Report "${withdrawingEntry.title}" withdrawn to draft.`);
+      setWithdrawingEntry(null);
+      fetchEntries(page, size, activeTab, mode, searchKeyword);
+    } catch (err: any) {
+      showError(err.message || 'Failed to withdraw report.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!approvingEntry) return;
+    try {
+      setActionLoading(true);
+      await workEntryApi.approve(approvingEntry.id);
+      showSuccess(`Report "${approvingEntry.title}" approved.`);
+      setApprovingEntry(null);
+      fetchEntries(page, size, activeTab, mode, searchKeyword);
+    } catch (err: any) {
+      showError(err.message || 'Failed to approve report.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectingEntry) return;
+    try {
+      setActionLoading(true);
+      await workEntryApi.reject(rejectingEntry.id, rejectionReasonInput.trim());
+      showSuccess(`Report "${rejectingEntry.title}" rejected with feedback.`);
+      setRejectingEntry(null);
+      setRejectionReasonInput('');
+      fetchEntries(page, size, activeTab, mode, searchKeyword);
+    } catch (err: any) {
+      showError(err.message || 'Failed to reject report.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const upper = (status || 'DRAFT').toUpperCase();
+    switch (upper) {
+      case 'APPROVED':
+      case 'COMPLETED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3 mr-1" />
+            Approved
+          </span>
+        );
+      case 'PENDING':
+      case 'SUBMITTED':
+      case 'IN PROGRESS':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending Review
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Rejected
+          </span>
+        );
+      case 'DRAFT':
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+            <FileEdit className="w-3 h-3 mr-1" />
+            Draft
+          </span>
+        );
+    }
+  };
+
+  const hasActiveFilters =
+    mode !== 'all' ||
+    !!searchKeyword.trim() ||
+    !!filterStartDate ||
+    !!filterEndDate ||
+    !!filterProjectId ||
+    !!filterCategory ||
+    !!filterTechnology;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
-            Work Entries
+            Work Reports & Entries
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Recorded daily work entries for{' '}
-            <span className="font-semibold text-slate-700">{currentUser?.name}</span>
+            Track daily tasks, submit reports for review, and inspect approval lifecycle for{' '}
+            <span className="font-semibold text-slate-700">{currentUser?.name || 'User'}</span>
           </p>
         </div>
+
         <button
-          onClick={handleOpenCreate}
-          disabled={projects.length === 0}
-          title={projects.length === 0 ? 'Create a project first before recording work' : ''}
-          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+          onClick={() => handleOpenCreate()}
+          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm hover:shadow transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4 mr-1.5" />
-          Add Work Entry
+          Create Work Report
         </button>
       </div>
 
-      {/* Success Notification */}
-      {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg text-sm font-medium shadow-xs">
-          {successMessage}
-        </div>
-      )}
+      {/* STATUS LIFECYCLE TABS */}
+      <div className="flex items-center space-x-1 border-b border-slate-200 overflow-x-auto pb-px">
+        <button
+          onClick={() => handleTabChange('ALL')}
+          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'ALL'
+              ? 'bg-white text-blue-600 border-t-2 border-l border-r border-t-blue-600 border-l-slate-200 border-r-slate-200 -mb-px'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <FolderKanban className="w-3.5 h-3.5 mr-1.5" />
+          All Reports
+        </button>
 
-      {/* Warning if no projects exist */}
-      {projects.length === 0 && !loading && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm flex items-center justify-between">
-          <span>⚠️ You don't have any projects yet. Please create a project before adding work entries.</span>
-          <button
-            onClick={() => (window.location.href = '/projects')}
-            className="text-xs font-bold text-amber-900 underline hover:no-underline ml-4"
-          >
-            Go to Projects
-          </button>
-        </div>
-      )}
+        <button
+          onClick={() => handleTabChange('DRAFT')}
+          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'DRAFT'
+              ? 'bg-white text-slate-900 border-t-2 border-l border-r border-t-slate-600 border-l-slate-200 border-r-slate-200 -mb-px'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <FileEdit className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+          My Drafts
+        </button>
 
-      {/* Search & Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        {/* Search Box */}
-        <form onSubmit={handleSearch} className="flex-1 relative flex items-center">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+        <button
+          onClick={() => handleTabChange('PENDING')}
+          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'PENDING'
+              ? 'bg-white text-amber-700 border-t-2 border-l border-r border-t-amber-600 border-l-slate-200 border-r-slate-200 -mb-px'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+          Pending Review
+        </button>
+
+        <button
+          onClick={() => handleTabChange('APPROVED')}
+          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'APPROVED'
+              ? 'bg-white text-emerald-700 border-t-2 border-l border-r border-t-emerald-600 border-l-slate-200 border-r-slate-200 -mb-px'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+          Approved
+        </button>
+
+        <button
+          onClick={() => handleTabChange('REJECTED')}
+          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'REJECTED'
+              ? 'bg-white text-rose-700 border-t-2 border-l border-r border-t-rose-600 border-l-slate-200 border-r-slate-200 -mb-px'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
+          Rejected Feedback
+        </button>
+      </div>
+
+      {/* SEARCH AND FILTER TOOLBAR */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
+        {/* Search input */}
+        <form onSubmit={handleSearchSubmit} className="relative w-full md:max-w-md flex items-center">
+          <Search className="w-4 h-4 absolute left-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by title, description, category, technology..."
+            placeholder="Search reports by keyword..."
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            className="w-full pl-9 pr-20 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+            className="w-full pl-10 pr-20 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500"
           />
-          {searchKeyword && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="absolute right-12 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
           <button
             type="submit"
-            className="absolute right-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            className="absolute right-1.5 px-3 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
           >
             Search
           </button>
         </form>
 
         {/* Filter Trigger Button */}
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center space-x-2 w-full md:w-auto justify-end">
           <button
             onClick={() => setShowFilterDrawer(!showFilterDrawer)}
-            className={`inline-flex items-center px-3.5 py-2 text-sm font-medium rounded-lg border transition-colors cursor-pointer ${
-              showFilterDrawer || activeFilterSummary
+            className={`inline-flex items-center px-3.5 py-2 text-sm font-semibold rounded-lg border transition-colors cursor-pointer ${
+              showFilterDrawer || hasActiveFilters
                 ? 'bg-blue-50 border-blue-300 text-blue-700'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
             <Filter className="w-4 h-4 mr-1.5 text-slate-500" />
             Filters
-            {activeFilterSummary && (
+            {hasActiveFilters && (
               <span className="w-2 h-2 rounded-full bg-blue-600 ml-2" />
             )}
           </button>
 
-          {activeFilterSummary && (
+          {hasActiveFilters && (
             <button
               onClick={handleResetFilters}
-              className="inline-flex items-center px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               title="Reset all filters"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1" />
@@ -404,20 +657,20 @@ export const WorkEntriesPage: React.FC = () => {
         <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4 animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Filter Options (Phase 4 APIs)
+              Advanced Filter Options
             </h4>
             <button
               onClick={() => setShowFilterDrawer(false)}
-              className="text-xs text-slate-400 hover:text-slate-600"
+              className="text-xs text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
             >
               Close
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Range Start */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Start Date</label>
               <input
                 type="date"
                 value={filterStartDate}
@@ -428,7 +681,7 @@ export const WorkEntriesPage: React.FC = () => {
 
             {/* Date Range End */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">End Date</label>
               <input
                 type="date"
                 value={filterEndDate}
@@ -439,7 +692,7 @@ export const WorkEntriesPage: React.FC = () => {
 
             {/* Project */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Project</label>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Project</label>
               <select
                 value={filterProjectId}
                 onChange={(e) => setFilterProjectId(e.target.value)}
@@ -456,7 +709,7 @@ export const WorkEntriesPage: React.FC = () => {
 
             {/* Category */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Category</label>
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
@@ -470,47 +723,18 @@ export const WorkEntriesPage: React.FC = () => {
                 ))}
               </select>
             </div>
-
-            {/* Technology */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Technology</label>
-              <input
-                type="text"
-                placeholder="e.g. Spring Boot"
-                value={filterTechnology}
-                onChange={(e) => setFilterTechnology(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                <option value="">All Statuses</option>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-2">
             <button
               onClick={handleResetFilters}
-              className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800"
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
             >
               Reset
             </button>
             <button
               onClick={handleApplyFilters}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm"
+              className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm cursor-pointer"
             >
               Apply Filters
             </button>
@@ -518,39 +742,48 @@ export const WorkEntriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Active Filter Pill */}
-      {activeFilterSummary && (
-        <div className="flex items-center space-x-2 text-xs text-slate-600 bg-blue-50/60 border border-blue-200 px-3.5 py-2 rounded-lg">
-          <span className="font-semibold text-blue-800">Active Filter:</span>
-          <span>{activeFilterSummary}</span>
-          <button
-            onClick={handleResetFilters}
-            className="ml-auto text-blue-700 hover:text-blue-900 font-bold"
-          >
-            Clear
-          </button>
-        </div>
+      {/* Error Alert */}
+      {error && (
+        <ErrorAlert
+          message={error}
+          onRetry={() => fetchEntries(page, size, activeTab, mode, searchKeyword)}
+        />
       )}
 
-      {/* Error Alert */}
-      {error && <ErrorAlert message={error} onRetry={fetchInitialData} />}
-
-      {/* Loading state */}
+      {/* Loading / Empty / Table State */}
       {loading ? (
         <LoadingSpinner message="Loading work entries..." className="py-20" />
       ) : entries.length === 0 ? (
         <EmptyState
-          title="No Work Entries Found"
-          description={
-            activeFilterSummary || searchKeyword
-              ? 'No entries match your search or filter criteria. Try adjusting or clearing filters.'
-              : 'You have not recorded any work entries yet. Click "Add Work Entry" to start recording your progress.'
+          title={
+            activeTab === 'DRAFT'
+              ? 'No Draft Reports'
+              : activeTab === 'PENDING'
+              ? 'No Reports Pending Review'
+              : activeTab === 'APPROVED'
+              ? 'No Approved Reports Yet'
+              : activeTab === 'REJECTED'
+              ? 'No Rejected Reports'
+              : 'No Work Entries Found'
           }
-          actionLabel={projects.length > 0 ? '+ Add Work Entry' : undefined}
-          onAction={projects.length > 0 ? handleOpenCreate : undefined}
+          description={
+            activeTab === 'DRAFT'
+              ? 'You do not have any saved working drafts. Click "Create Work Report" to begin a draft.'
+              : activeTab === 'PENDING'
+              ? 'You do not have any work reports currently awaiting manager review.'
+              : activeTab === 'APPROVED'
+              ? 'Submitted reports will appear here once approved by your manager or administrator.'
+              : activeTab === 'REJECTED'
+              ? 'Great news! None of your submitted work reports have been returned for correction.'
+              : hasActiveFilters
+              ? 'No reports match your filters. Try clearing search keywords or date criteria.'
+              : 'No work entries recorded yet. Click "Create Work Report" to get started.'
+          }
+          actionLabel={projects.length > 0 ? '+ Create Work Report' : undefined}
+          onAction={projects.length > 0 ? () => handleOpenCreate() : undefined}
         />
       ) : (
-        /* Work Entries Table */
+        /* Table View */
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
@@ -558,96 +791,183 @@ export const WorkEntriesPage: React.FC = () => {
                 <tr>
                   <th className="px-5 py-3.5">Date</th>
                   <th className="px-5 py-3.5">Project</th>
-                  <th className="px-5 py-3.5">Title & Description</th>
+                  <th className="px-5 py-3.5">Report Title & Summary</th>
                   <th className="px-5 py-3.5">Category</th>
                   <th className="px-5 py-3.5">Technology</th>
                   <th className="px-5 py-3.5">Status</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
+                  <th className="px-5 py-3.5 text-right">Workflow Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* Date */}
-                    <td className="px-5 py-4 whitespace-nowrap font-semibold text-slate-800">
-                      <div className="flex items-center space-x-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{entry.date}</span>
-                      </div>
-                    </td>
+                {entries.map((entry) => {
+                  const upperStatus = (entry.status || 'DRAFT').toUpperCase();
+                  const isDraft = upperStatus === 'DRAFT';
+                  const isPending = upperStatus === 'PENDING' || upperStatus === 'SUBMITTED';
+                  const isApproved = upperStatus === 'APPROVED' || upperStatus === 'COMPLETED';
+                  const isRejected = upperStatus === 'REJECTED';
 
-                    {/* Project */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="font-semibold text-blue-600">
-                        {entry.projectName || `Project #${entry.projectId}`}
-                      </span>
-                    </td>
+                  return (
+                    <tr
+                      key={entry.id}
+                      onClick={() => setSelectedEntryForDetails(entry)}
+                      className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                    >
+                      {/* Date */}
+                      <td className="px-5 py-4 whitespace-nowrap font-semibold text-slate-800">
+                        <div className="flex items-center space-x-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{entry.date}</span>
+                        </div>
+                      </td>
 
-                    {/* Title & Description */}
-                    <td className="px-5 py-4 max-w-sm">
-                      <div className="font-bold text-slate-800">{entry.title}</div>
-                      <div className="text-xs text-slate-500 line-clamp-2 mt-0.5">
-                        {entry.description}
-                      </div>
-                    </td>
+                      {/* Project */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="font-semibold text-blue-600">
+                          {entry.projectName || `Project #${entry.projectId}`}
+                        </span>
+                      </td>
 
-                    {/* Category */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                        {entry.category}
-                      </span>
-                    </td>
+                      {/* Title & Description */}
+                      <td className="px-5 py-4 max-w-sm">
+                        <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                          {entry.title}
+                        </div>
+                        <div className="text-xs text-slate-500 line-clamp-2 mt-0.5">
+                          {entry.description}
+                        </div>
+                        {isRejected && entry.rejectionReason && (
+                          <div className="mt-1.5 text-xs text-rose-700 bg-rose-50 p-1.5 rounded border border-rose-200">
+                            <strong>Feedback:</strong> {entry.rejectionReason}
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Technology */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="text-xs font-mono bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-700">
-                        {entry.technology}
-                      </span>
-                    </td>
+                      {/* Category */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          {entry.category}
+                        </span>
+                      </td>
 
-                    {/* Status */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          entry.status === 'Completed'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : entry.status === 'In Progress'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
+                      {/* Technology */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="text-xs font-mono bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-700">
+                          {entry.technology || 'N/A'}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {getStatusBadge(entry.status)}
+                      </td>
+
+                      {/* Actions */}
+                      <td
+                        className="px-5 py-4 whitespace-nowrap text-right space-x-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {entry.status}
-                      </span>
-                    </td>
+                        {/* Draft: Submit */}
+                        {isDraft && (
+                          <button
+                            onClick={() => setSubmittingEntry(entry)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                            title="Submit for Review"
+                          >
+                            <Send className="w-4 h-4 text-blue-600" />
+                          </button>
+                        )}
 
-                    {/* Actions */}
-                    <td className="px-5 py-4 whitespace-nowrap text-right space-x-1">
-                      <button
-                        onClick={() => handleOpenEdit(entry)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                        title="Edit Entry"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeletingEntry(entry)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                        title="Delete Entry"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        {/* Pending: Withdraw */}
+                        {isPending && !isAdmin && (
+                          <button
+                            onClick={() => setWithdrawingEntry(entry)}
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
+                            title="Withdraw to Draft"
+                          >
+                            <RotateCcw className="w-4 h-4 text-amber-600" />
+                          </button>
+                        )}
+
+                        {/* Pending: Admin Approve / Reject */}
+                        {isPending && isAdmin && (
+                          <>
+                            <button
+                              onClick={() => setApprovingEntry(entry)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                              title="Approve Report"
+                            >
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectingEntry(entry);
+                                setRejectionReasonInput('');
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                              title="Reject Report"
+                            >
+                              <X className="w-4 h-4 text-rose-600" />
+                            </button>
+                          </>
+                        )}
+
+                        {/* Edit: Allowed on Draft, Rejected, or by Admin */}
+                        {(isDraft || isRejected || isAdmin) && (
+                          <button
+                            onClick={() => handleOpenEdit(entry)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                            title={isRejected ? 'Edit & Resubmit' : 'Edit Entry'}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {/* Delete: Allowed on Draft or by Admin */}
+                        {(isDraft || isAdmin) && !isApproved && (
+                          <button
+                            onClick={() => setDeletingEntry(entry)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                            title="Delete Entry"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => setSelectedEntryForDetails(entry)}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {!loading && !error && entries.length > 0 && (
+            <div className="border-t border-slate-100 px-4">
+              <Pagination
+                page={page}
+                size={size}
+                totalElements={totalElements}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                onSizeChange={handleSizeChange}
+                disabled={loading}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* CREATE WORK ENTRY MODAL */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Record Work Entry">
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
+      {/* CREATE WORK REPORT MODAL */}
+      <Modal isOpen={isCreateOpen} onClose={handleCloseCreate} title="Create Work Report">
+        <div className="space-y-4">
           {formErrors.form && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
               {formErrors.form}
@@ -658,7 +978,7 @@ export const WorkEntriesPage: React.FC = () => {
             {/* Date */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Date <span className="text-red-500">*</span>
+                Report Date <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -674,7 +994,7 @@ export const WorkEntriesPage: React.FC = () => {
             {/* Project Selection */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Project <span className="text-red-500">*</span>
+                Project Assignment <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedProjectId}
@@ -698,12 +1018,18 @@ export const WorkEntriesPage: React.FC = () => {
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Title <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Report Title <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.title.length}/100
+              </span>
+            </div>
             <input
               type="text"
-              placeholder="e.g. Implemented JWT authentication filter"
+              maxLength={100}
+              placeholder="e.g. Implemented OAuth token refresh and validation"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -715,12 +1041,18 @@ export const WorkEntriesPage: React.FC = () => {
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Description <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Detailed Work Description <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.description.length}/1000
+              </span>
+            </div>
             <textarea
-              rows={3}
-              placeholder="Detailed description of the completed tasks and testing..."
+              rows={4}
+              maxLength={1000}
+              placeholder="Provide a clear description of tasks completed, features delivered, and test coverage..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -732,7 +1064,7 @@ export const WorkEntriesPage: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Category */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -754,11 +1086,12 @@ export const WorkEntriesPage: React.FC = () => {
             {/* Technology */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Technology <span className="text-red-500">*</span>
+                Technology / Tools <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. Spring Boot, React"
+                maxLength={50}
+                placeholder="e.g. Spring Boot, PostgreSQL"
                 value={formData.technology}
                 onChange={(e) => setFormData({ ...formData, technology: e.target.value })}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -769,52 +1102,63 @@ export const WorkEntriesPage: React.FC = () => {
                 <p className="text-xs text-red-500 mt-1">{formErrors.technology}</p>
               )}
             </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsCreateOpen(false)}
+              onClick={handleCloseCreate}
               className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {submitting ? 'Saving...' : 'Save Work Entry'}
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleSaveEntry('DRAFT')}
+                className="px-3.5 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <FileEdit className="w-3.5 h-3.5 inline mr-1.5 text-slate-500" />
+                Save as Draft
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleSaveEntry('PENDING')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5 inline mr-1.5" />
+                {actionLoading ? 'Submitting...' : 'Submit for Review'}
+              </button>
+            </div>
           </div>
-        </form>
+        </div>
       </Modal>
 
-      {/* EDIT WORK ENTRY MODAL */}
+      {/* EDIT / RESUBMIT WORK REPORT MODAL */}
       <Modal
         isOpen={!!editingEntry}
-        onClose={() => setEditingEntry(null)}
-        title={`Edit Work Entry: ${editingEntry?.title || ''}`}
+        onClose={handleCloseEdit}
+        title={
+          editingEntry?.status?.toUpperCase() === 'REJECTED'
+            ? `Correction & Resubmission: ${editingEntry?.title || ''}`
+            : `Edit Work Report: ${editingEntry?.title || ''}`
+        }
       >
-        <form onSubmit={handleEditSubmit} className="space-y-4">
+        <div className="space-y-4">
+          {/* Rejection Alert Header if Rejected */}
+          {editingEntry?.status?.toUpperCase() === 'REJECTED' && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Reviewer Feedback:</span>{' '}
+                {editingEntry.rejectionReason || 'Please review and correct the details before resubmitting.'}
+              </div>
+            </div>
+          )}
+
           {formErrors.form && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
               {formErrors.form}
@@ -837,11 +1181,17 @@ export const WorkEntriesPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Title <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.title.length}/100
+              </span>
+            </div>
             <input
               type="text"
+              maxLength={100}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -852,11 +1202,17 @@ export const WorkEntriesPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Description <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Description <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.description.length}/1000
+              </span>
+            </div>
             <textarea
-              rows={3}
+              rows={4}
+              maxLength={1000}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -868,7 +1224,7 @@ export const WorkEntriesPage: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Category <span className="text-red-500">*</span>
@@ -892,6 +1248,7 @@ export const WorkEntriesPage: React.FC = () => {
               </label>
               <input
                 type="text"
+                maxLength={50}
                 value={formData.technology}
                 onChange={(e) => setFormData({ ...formData, technology: e.target.value })}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
@@ -902,55 +1259,225 @@ export const WorkEntriesPage: React.FC = () => {
                 <p className="text-xs text-red-500 mt-1">{formErrors.technology}</p>
               )}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleCloseEdit}
+              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleUpdateEntry()}
+                className="px-3.5 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
               >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                Save Changes
+              </button>
+              {editingEntry?.status?.toUpperCase() === 'REJECTED' && (
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleUpdateEntry('PENDING')}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5 inline mr-1.5" />
+                  {actionLoading ? 'Resubmitting...' : 'Resubmit for Review'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SUBMIT CONFIRMATION MODAL */}
+      <Modal
+        isOpen={!!submittingEntry}
+        onClose={() => setSubmittingEntry(null)}
+        title="Submit Work Report for Review"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Are you sure you want to submit this work report? After submission, it will be marked as{' '}
+            <strong className="text-amber-700">Pending Review</strong> and sent to your administrator for verification.
+          </p>
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="font-bold text-slate-800">{submittingEntry?.title}</div>
+            <div className="text-xs text-slate-500 mt-1">
+              Project: {submittingEntry?.projectName || `#${submittingEntry?.projectId}`} &bull; Date: {submittingEntry?.date}
             </div>
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setEditingEntry(null)}
+              onClick={() => setSubmittingEntry(null)}
               className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={submitting}
+              type="button"
+              disabled={actionLoading}
+              onClick={handleSubmitConfirm}
               className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Saving...' : 'Save Changes'}
+              <Send className="w-3.5 h-3.5 inline mr-1.5" />
+              {actionLoading ? 'Submitting...' : 'Confirm Submission'}
             </button>
           </div>
-        </form>
+        </div>
+      </Modal>
+
+      {/* WITHDRAW CONFIRMATION MODAL */}
+      <Modal
+        isOpen={!!withdrawingEntry}
+        onClose={() => setWithdrawingEntry(null)}
+        title="Withdraw Submission to Draft"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Are you sure you want to withdraw this report? It will be moved back to{' '}
+            <strong className="text-slate-800">Draft</strong> status so you can edit and improve it.
+          </p>
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="font-bold text-slate-800">{withdrawingEntry?.title}</div>
+            <div className="text-xs text-slate-500 mt-1">
+              Project: {withdrawingEntry?.projectName || `#${withdrawingEntry?.projectId}`} &bull; Date: {withdrawingEntry?.date}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setWithdrawingEntry(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleWithdrawConfirm}
+              className="px-4 py-2 text-sm font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 inline mr-1.5" />
+              {actionLoading ? 'Withdrawing...' : 'Withdraw to Draft'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ADMIN APPROVE MODAL */}
+      <Modal
+        isOpen={!!approvingEntry}
+        onClose={() => setApprovingEntry(null)}
+        title="Approve Work Report"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Approve this submitted work report? Approved reports are locked and verified for official reports.
+          </p>
+          <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
+            <div className="font-bold text-emerald-900">{approvingEntry?.title}</div>
+            <div className="text-xs text-emerald-700 mt-1">
+              Project: {approvingEntry?.projectName || `#${approvingEntry?.projectId}`} &bull; Date: {approvingEntry?.date}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setApprovingEntry(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleApproveConfirm}
+              className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5 inline mr-1.5" />
+              {actionLoading ? 'Approving...' : 'Approve Report'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ADMIN REJECT MODAL */}
+      <Modal
+        isOpen={!!rejectingEntry}
+        onClose={() => setRejectingEntry(null)}
+        title="Reject Work Report with Feedback"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Explain what needs correction before this work report can be accepted:
+          </p>
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="font-bold text-slate-800">{rejectingEntry?.title}</div>
+            <div className="text-xs text-slate-500 mt-1">
+              Project: {rejectingEntry?.projectName || `#${rejectingEntry?.projectId}`} &bull; Date: {rejectingEntry?.date}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Rejection Comments & Required Changes
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Please clarify test coverage and specific endpoints delivered."
+              value={rejectionReasonInput}
+              onChange={(e) => setRejectionReasonInput(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-300"
+            />
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setRejectingEntry(null)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleRejectConfirm}
+              className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5 inline mr-1.5" />
+              {actionLoading ? 'Rejecting...' : 'Reject Report'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* DELETE CONFIRMATION MODAL */}
       <Modal
         isOpen={!!deletingEntry}
         onClose={() => setDeletingEntry(null)}
-        title="Confirm Delete Work Entry"
+        title="Delete Work Entry"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Are you sure you want to delete work entry{' '}
-            <span className="font-bold text-slate-800">"{deletingEntry?.title}"</span>?
+            Are you sure you want to permanently delete this work entry?
           </p>
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="font-bold text-slate-800">{deletingEntry?.title}</div>
+            <div className="text-xs text-slate-500 mt-1">
+              Project: {deletingEntry?.projectName || `#${deletingEntry?.projectId}`} &bull; Date: {deletingEntry?.date}
+            </div>
+          </div>
+
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
             <button
               type="button"
@@ -961,15 +1488,49 @@ export const WorkEntriesPage: React.FC = () => {
             </button>
             <button
               type="button"
-              disabled={submitting}
+              disabled={actionLoading}
               onClick={handleDeleteConfirm}
               className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Deleting...' : 'Yes, Delete Entry'}
+              {actionLoading ? 'Deleting...' : 'Delete Entry'}
             </button>
           </div>
         </div>
       </Modal>
+
+      {/* DETAILS VIEW MODAL */}
+      <WorkEntryDetailsModal
+        entry={selectedEntryForDetails}
+        isOpen={!!selectedEntryForDetails}
+        onClose={() => setSelectedEntryForDetails(null)}
+        isAdmin={isAdmin}
+        currentUserId={currentUserId}
+        onEdit={(entry) => {
+          setSelectedEntryForDetails(null);
+          handleOpenEdit(entry);
+        }}
+        onDelete={(entry) => {
+          setSelectedEntryForDetails(null);
+          setDeletingEntry(entry);
+        }}
+        onSubmit={(entry) => {
+          setSelectedEntryForDetails(null);
+          setSubmittingEntry(entry);
+        }}
+        onWithdraw={(entry) => {
+          setSelectedEntryForDetails(null);
+          setWithdrawingEntry(entry);
+        }}
+        onApprove={(entry) => {
+          setSelectedEntryForDetails(null);
+          setApprovingEntry(entry);
+        }}
+        onReject={(entry) => {
+          setSelectedEntryForDetails(null);
+          setRejectingEntry(entry);
+          setRejectionReasonInput('');
+        }}
+      />
     </div>
   );
 };

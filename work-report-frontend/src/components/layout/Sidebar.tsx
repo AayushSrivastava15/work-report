@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, FileText, FileBarChart, X } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, FileText, FileBarChart, Users, Shield, X } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -8,6 +9,9 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const navItems = [
     {
       label: 'Dashboard',
@@ -28,6 +32,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Reports',
       path: '/reports',
       icon: <FileBarChart className="w-5 h-5" />,
+    },
+  ];
+
+  const adminItems = [
+    {
+      label: 'User Management',
+      path: '/admin/users',
+      icon: <Users className="w-5 h-5" />,
     },
   ];
 
@@ -59,39 +71,78 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation items */}
-        <nav className="p-4 space-y-1.5 flex-1">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">
-            Main Menu
+        <nav className="p-4 space-y-4 flex-1 overflow-y-auto">
+          <div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+              Main Menu
+            </div>
+            <div className="space-y-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => onClose()}
+                  className={({ isActive }) =>
+                    `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
+                        {item.icon}
+                      </span>
+                      <span>{item.label}</span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
           </div>
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => onClose()}
-              className={({ isActive }) =>
-                `flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
+
+          {/* Admin Navigation Section */}
+          {isAdmin && (
+            <div className="pt-2 border-t border-slate-100">
+              <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider px-3 mb-2 flex items-center space-x-1.5">
+                <Shield className="w-3.5 h-3.5" />
+                <span>Administration</span>
+              </div>
+              <div className="space-y-1">
+                {adminItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => onClose()}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-purple-50 text-purple-700 font-semibold shadow-2xs border border-purple-100'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span className={isActive ? 'text-purple-600' : 'text-slate-400'}>
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* System info footer */}
         <div className="p-4 border-t border-slate-100 text-xs text-slate-400">
-          <div className="font-medium text-slate-600">Work Report v1.0</div>
-          <div>Phase 8 — Report Preview & Export</div>
+          <div className="font-semibold text-slate-700">Work Report Enterprise</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Secure JWT &bull; v1.0.0</div>
         </div>
       </aside>
     </>

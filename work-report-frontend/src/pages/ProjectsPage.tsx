@@ -1,20 +1,31 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import { projectApi } from '../api/projectApi';
 import type { ProjectRequest, ProjectResponse } from '../types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
 import { Modal } from '../components/common/Modal';
-import { Plus, Edit2, Trash2, FolderPlus, FolderKanban, Calendar } from 'lucide-react';
+import { Pagination } from '../components/common/Pagination';
+import { Plus, Edit2, Trash2, FolderPlus, FolderKanban, Calendar, FilePlus2 } from 'lucide-react';
 
 export const ProjectsPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
+  const { showSuccess, showError } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Pagination state
+  const [page, setPage] = useState<number>(0);
+  const [size, setSize] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [totalElements, setTotalElements] = useState<number>(0);
 
   // Modal States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -26,13 +37,17 @@ export const ProjectsPage: React.FC = () => {
   const [formErrors, setFormErrors] = useState<{ name?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (pageToFetch = page, sizeToFetch = size) => {
     if (!currentUserId) return;
     try {
       setLoading(true);
       setError(null);
-      const data = await projectApi.getProjectsByUser(currentUserId);
-      setProjects(data);
+      const data = await projectApi.getProjectsByUser(currentUserId, pageToFetch, sizeToFetch);
+      setProjects(data.content);
+      setPage(data.page);
+      setSize(data.size);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
     } catch (err: any) {
       setError(err.message || 'Failed to load projects');
     } finally {
@@ -41,12 +56,24 @@ export const ProjectsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, [currentUserId]);
+    fetchProjects(page, size);
+  }, [currentUserId, page, size]);
 
-  const showNotification = (msg: string) => {
-    setSuccessMessage(msg);
-    setTimeout(() => setSuccessMessage(null), 4000);
+  // Handle URL query trigger ?new=1
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      handleOpenCreate();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleSizeChange = (newSize: number) => {
+    setSize(newSize);
+    setPage(0);
   };
 
   const validateForm = (): boolean => {
@@ -64,10 +91,32 @@ export const ProjectsPage: React.FC = () => {
     setIsCreateOpen(true);
   };
 
+  const handleCloseCreate = () => {
+    if (formData.name.trim() || formData.description?.trim()) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+        return;
+      }
+    }
+    setIsCreateOpen(false);
+  };
+
   const handleOpenEdit = (proj: ProjectResponse) => {
     setEditingProject(proj);
     setFormData({ name: proj.name, description: proj.description || '' });
     setFormErrors({});
+  };
+
+  const handleCloseEdit = () => {
+    if (
+      editingProject &&
+      (formData.name !== editingProject.name ||
+        formData.description !== (editingProject.description || ''))
+    ) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+        return;
+      }
+    }
+    setEditingProject(null);
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -77,11 +126,13 @@ export const ProjectsPage: React.FC = () => {
     try {
       setSubmitting(true);
       const created = await projectApi.createProject(currentUserId, formData);
-      setProjects((prev) => [...prev, created]);
       setIsCreateOpen(false);
-      showNotification(`Project "${created.name}" created successfully!`);
+      showSuccess(`Project "${created.name}" created successfully!`);
+      fetchProjects(0, size);
     } catch (err: any) {
-      setFormErrors({ name: err.fieldErrors?.name || err.message || 'Failed to create project' });
+      const errorMsg = err.fieldErrors?.name || err.message || 'Failed to create project';
+      setFormErrors({ name: errorMsg });
+      showError(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -94,11 +145,13 @@ export const ProjectsPage: React.FC = () => {
     try {
       setSubmitting(true);
       const updated = await projectApi.updateProject(editingProject.id, formData);
-      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       setEditingProject(null);
-      showNotification(`Project "${updated.name}" updated successfully!`);
+      showSuccess(`Project "${updated.name}" updated successfully!`);
+      fetchProjects(page, size);
     } catch (err: any) {
-      setFormErrors({ name: err.fieldErrors?.name || err.message || 'Failed to update project' });
+      const errorMsg = err.fieldErrors?.name || err.message || 'Failed to update project';
+      setFormErrors({ name: errorMsg });
+      showError(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -110,11 +163,14 @@ export const ProjectsPage: React.FC = () => {
     try {
       setSubmitting(true);
       await projectApi.deleteProject(deletingProject.id);
-      setProjects((prev) => prev.filter((p) => p.id !== deletingProject.id));
-      showNotification(`Project "${deletingProject.name}" deleted successfully.`);
+      showSuccess(`Project "${deletingProject.name}" deleted successfully.`);
       setDeletingProject(null);
+      const newPage = projects.length === 1 && page > 0 ? page - 1 : page;
+      fetchProjects(newPage, size);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete project');
+      const errorMsg = err.message || 'Failed to delete project';
+      setError(errorMsg);
+      showError(errorMsg);
       setDeletingProject(null);
     } finally {
       setSubmitting(false);
@@ -139,13 +195,6 @@ export const ProjectsPage: React.FC = () => {
           New Project
         </button>
       </div>
-
-      {/* Success Notification */}
-      {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg text-sm font-medium shadow-xs animate-fade-in">
-          {successMessage}
-        </div>
-      )}
 
       {/* Error Alert */}
       {error && <ErrorAlert message={error} onRetry={fetchProjects} />}
@@ -194,36 +243,68 @@ export const ProjectsPage: React.FC = () => {
               </div>
 
               {/* Action buttons */}
-              <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2">
+              <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                 <button
-                  onClick={() => handleOpenEdit(project)}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                  onClick={() => navigate(`/work-entries?new=1&projectId=${project.id}`)}
+                  className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                  title="Add work entry for this project"
                 >
-                  <Edit2 className="w-3.5 h-3.5 mr-1" />
-                  Edit
+                  <FilePlus2 className="w-3.5 h-3.5 mr-1" />
+                  + Add Work
                 </button>
-                <button
-                  onClick={() => setDeletingProject(project)}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Delete
-                </button>
+
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => handleOpenEdit(project)}
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 mr-1" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setDeletingProject(project)}
+                    className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Pagination Controls */}
+      {!loading && !error && projects.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs px-4">
+          <Pagination
+            page={page}
+            size={size}
+            totalElements={totalElements}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            onSizeChange={handleSizeChange}
+            disabled={loading}
+          />
+        </div>
+      )}
+
       {/* CREATE MODAL */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Create New Project">
+      <Modal isOpen={isCreateOpen} onClose={handleCloseCreate} title="Create New Project">
         <form onSubmit={handleCreateSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Project Name <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Project Name <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.name.length}/100
+              </span>
+            </div>
             <input
               type="text"
+              maxLength={100}
               placeholder="e.g. DPWS Application"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -236,11 +317,17 @@ export const ProjectsPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Description
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Description
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {(formData.description || '').length}/500
+              </span>
+            </div>
             <textarea
               rows={3}
+              maxLength={500}
               placeholder="Brief summary of the project goals..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -251,7 +338,7 @@ export const ProjectsPage: React.FC = () => {
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsCreateOpen(false)}
+              onClick={handleCloseCreate}
               className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
@@ -270,16 +357,22 @@ export const ProjectsPage: React.FC = () => {
       {/* EDIT MODAL */}
       <Modal
         isOpen={!!editingProject}
-        onClose={() => setEditingProject(null)}
+        onClose={handleCloseEdit}
         title={`Edit Project: ${editingProject?.name || ''}`}
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Project Name <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Project Name <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {formData.name.length}/100
+              </span>
+            </div>
             <input
               type="text"
+              maxLength={100}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className={`w-full px-3.5 py-2 text-sm rounded-lg border ${
@@ -291,11 +384,17 @@ export const ProjectsPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Description
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Description
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                {(formData.description || '').length}/500
+              </span>
+            </div>
             <textarea
               rows={3}
+              maxLength={500}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -305,7 +404,7 @@ export const ProjectsPage: React.FC = () => {
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setEditingProject(null)}
+              onClick={handleCloseEdit}
               className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Cancel

@@ -13,6 +13,8 @@ import type {
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
+import { useNavigate } from 'react-router-dom';
+import { WorkEntryDetailsModal } from '../components/work-entries/WorkEntryDetailsModal';
 import {
   FileText,
   FolderKanban,
@@ -22,6 +24,10 @@ import {
   Cpu,
   CheckCircle2,
   BarChart3,
+  Plus,
+  Download,
+  Eye,
+  FileEdit
 } from 'lucide-react';
 import {
   BarChart,
@@ -37,16 +43,26 @@ import {
 } from 'recharts';
 
 const STATUS_COLORS: Record<string, string> = {
-  Completed: '#10b981', // green-500
-  'In Progress': '#3b82f6', // blue-500
-  Pending: '#f59e0b', // amber-500
-  Blocked: '#ef4444', // red-500
+  Draft: '#94a3b8',
+  DRAFT: '#94a3b8',
+  'In Progress': '#3b82f6',
+  Pending: '#f59e0b',
+  PENDING: '#f59e0b',
+  Submitted: '#f59e0b',
+  SUBMITTED: '#f59e0b',
+  Approved: '#10b981',
+  APPROVED: '#10b981',
+  Completed: '#10b981',
+  Rejected: '#f43f5e',
+  REJECTED: '#f43f5e',
+  Blocked: '#ef4444',
 };
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 
 export const DashboardPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +75,9 @@ export const DashboardPage: React.FC = () => {
   const [categoryStats, setCategoryStats] = useState<DashboardCategoryResponse[]>([]);
   const [techStats, setTechStats] = useState<DashboardTechnologyResponse[]>([]);
   const [statusStats, setStatusStats] = useState<DashboardStatusResponse[]>([]);
+
+  // Selected entry for Details Modal
+  const [selectedEntry, setSelectedEntry] = useState<WorkEntryResponse | null>(null);
 
   const fetchDashboardData = async () => {
     if (!currentUserId) return;
@@ -121,29 +140,64 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Welcome & Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* Welcome & Quick Actions */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
             Dashboard
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Overview of work progress and distribution for{' '}
+            Overview of work report lifecycle, metrics, and project activity for{' '}
             <span className="font-semibold text-slate-700">{currentUser?.name || 'User'}</span>
           </p>
+        </div>
+
+        {/* Quick Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate('/work-entries?new=1')}
+            className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Create Work Report
+          </button>
+          <button
+            onClick={() => navigate('/work-entries?status=DRAFT')}
+            className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+          >
+            <FileEdit className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+            My Drafts
+          </button>
+          <button
+            onClick={() => navigate('/work-entries?status=PENDING')}
+            className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-800 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+            Pending Review
+          </button>
+          <button
+            onClick={() => navigate('/reports')}
+            className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+            Export Reports
+          </button>
         </div>
       </div>
 
       {/* 4 Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Total Work Entries */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-4">
+        <div
+          onClick={() => navigate('/work-entries')}
+          className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer"
+        >
           <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <FileText className="w-6 h-6" />
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Total Work Entries
+              Total Reports
             </div>
             <div className="text-2xl font-bold text-slate-800 mt-0.5">
               {workCount?.workCount ?? 0}
@@ -152,7 +206,10 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Total Projects */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-4">
+        <div
+          onClick={() => navigate('/projects')}
+          className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-4 hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer"
+        >
           <div className="w-12 h-12 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
             <FolderKanban className="w-6 h-6" />
           </div>
@@ -200,10 +257,10 @@ export const DashboardPage: React.FC = () => {
       {/* If zero entries, show friendly empty state */}
       {!hasData ? (
         <EmptyState
-          title="No Work Entries Recorded Yet"
-          description="Start recording daily work entries to view project distributions, category breakdowns, and activity charts."
-          actionLabel="+ Record Work Entry"
-          onAction={() => (window.location.href = '/work-entries')}
+          title="No Work Reports Recorded Yet"
+          description="Start creating work reports to view project breakdowns, status lifecycle distributions, and weekly metrics."
+          actionLabel="+ Create Work Report"
+          onAction={() => navigate('/work-entries?new=1')}
         />
       ) : (
         <>
@@ -213,7 +270,7 @@ export const DashboardPage: React.FC = () => {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs">
               <div className="flex items-center space-x-2 mb-4">
                 <BarChart3 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-semibold text-slate-800">Work by Project</h3>
+                <h3 className="text-base font-semibold text-slate-800">Reports by Project</h3>
               </div>
               {projectStats.length === 0 ? (
                 <div className="h-64 flex items-center justify-center text-sm text-slate-400">
@@ -277,7 +334,7 @@ export const DashboardPage: React.FC = () => {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs">
               <div className="flex items-center space-x-2 mb-4">
                 <Cpu className="w-5 h-5 text-purple-600" />
-                <h3 className="text-base font-semibold text-slate-800">Work by Technology</h3>
+                <h3 className="text-base font-semibold text-slate-800">Reports by Technology</h3>
               </div>
               {techStats.length === 0 ? (
                 <div className="h-64 flex items-center justify-center text-sm text-slate-400">
@@ -300,11 +357,11 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
 
-            {/* Chart 4: Work by Status */}
+            {/* Chart 4: Work by Status Lifecycle */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs">
               <div className="flex items-center space-x-2 mb-4">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-semibold text-slate-800">Work by Status</h3>
+                <h3 className="text-base font-semibold text-slate-800">Lifecycle Status Breakdown</h3>
               </div>
               {statusStats.length === 0 ? (
                 <div className="h-64 flex items-center justify-center text-sm text-slate-400">
@@ -348,7 +405,7 @@ export const DashboardPage: React.FC = () => {
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-slate-800">This Week's Activity</h3>
-                <p className="text-xs text-slate-500">Entries recorded from Monday to Sunday this week</p>
+                <p className="text-xs text-slate-500">Reports recorded for the current week</p>
               </div>
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                 {weekEntries.length} entries
@@ -357,7 +414,7 @@ export const DashboardPage: React.FC = () => {
 
             {weekEntries.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500">
-                No work entries recorded for the current week.
+                No work reports recorded for the current week.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -369,18 +426,23 @@ export const DashboardPage: React.FC = () => {
                       <th className="px-6 py-3">Title</th>
                       <th className="px-6 py-3">Category</th>
                       <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {weekEntries.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr
+                        key={entry.id}
+                        onClick={() => setSelectedEntry(entry)}
+                        className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                      >
                         <td className="px-6 py-3.5 whitespace-nowrap font-medium text-slate-800">
                           {entry.date}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap font-medium text-blue-600">
                           {entry.projectName}
                         </td>
-                        <td className="px-6 py-3.5 max-w-md truncate text-slate-700 font-medium">
+                        <td className="px-6 py-3.5 max-w-md truncate text-slate-700 font-medium group-hover:text-blue-600 transition-colors">
                           {entry.title}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
@@ -391,15 +453,26 @@ export const DashboardPage: React.FC = () => {
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              entry.status === 'Completed'
+                              entry.status === 'Approved' || entry.status === 'Completed'
                                 ? 'bg-emerald-50 text-emerald-700'
-                                : entry.status === 'In Progress'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-amber-50 text-amber-700'
+                                : entry.status === 'Pending' || entry.status === 'Submitted'
+                                ? 'bg-amber-50 text-amber-700'
+                                : entry.status === 'Rejected'
+                                ? 'bg-rose-50 text-rose-700'
+                                : 'bg-slate-100 text-slate-700'
                             }`}
                           >
                             {entry.status}
                           </span>
+                        </td>
+                        <td className="px-6 py-3.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setSelectedEntry(entry)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                            title="View Entry Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -410,6 +483,17 @@ export const DashboardPage: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Details Modal */}
+      <WorkEntryDetailsModal
+        entry={selectedEntry}
+        isOpen={!!selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        onEdit={(entry) => {
+          setSelectedEntry(null);
+          navigate(`/work-entries?edit=${entry.id}`);
+        }}
+      />
     </div>
   );
 };

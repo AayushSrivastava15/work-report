@@ -1,11 +1,12 @@
 import { createContext, useContext } from 'react';
-import type { LoginRequest, UserResponse } from '../types';
+import type { LoginRequest, LoginResponse, UserResponse } from '../types';
 
 export interface AuthContextType {
   isAuthenticated: boolean;
   currentUser: UserResponse | null;
   currentUserId: number;
-  login: (credentials: LoginRequest) => Promise<UserResponse>;
+  token: string | null;
+  login: (credentials: LoginRequest) => Promise<LoginResponse>;
   logout: () => void;
 }
 

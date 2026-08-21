@@ -1,5 +1,7 @@
 package work_report_backend.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +13,7 @@ import work_report_backend.entity.WorkEntry;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
 
@@ -22,7 +25,14 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
 
     List<WorkEntry> findByUserIdOrderByDateDesc(Long userId);
 
-    // ── Phase 4 — Filtering ───────────────────────────────────────────────────
+    // Multi-Tenant Scoped Queries
+    Page<WorkEntry> findByOrganizationId(Long organizationId, Pageable pageable);
+
+    Optional<WorkEntry> findByIdAndOrganizationId(Long id, Long organizationId);
+
+    List<WorkEntry> findByOrganizationId(Long organizationId);
+
+    // ── Phase 4 — Filtering & Search (List versions) ─────────────────────────
 
     // 1. Filter by date range (inclusive)
     List<WorkEntry> findByDateBetweenOrderByDateDesc(LocalDate startDate, LocalDate endDate);
@@ -59,6 +69,39 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
             ORDER BY w.date DESC
             """)
     List<WorkEntry> searchByKeyword(@Param("keyword") String keyword);
+
+    // ── Phase 10 — Pagination (Pageable versions) ─────────────────────────────
+
+    Page<WorkEntry> findByUserId(Long userId, Pageable pageable);
+
+    Page<WorkEntry> findByProjectId(Long projectId, Pageable pageable);
+
+    Page<WorkEntry> findByDateBetween(LocalDate startDate, LocalDate endDate, Pageable pageable);
+
+    Page<WorkEntry> findByUserIdAndDateBetween(Long userId, LocalDate startDate, LocalDate endDate, Pageable pageable);
+
+    Page<WorkEntry> findByProjectIdAndDateBetween(Long projectId, LocalDate startDate, LocalDate endDate, Pageable pageable);
+
+    Page<WorkEntry> findByUserIdAndProjectIdAndDateBetween(
+            Long userId, Long projectId, LocalDate startDate, LocalDate endDate, Pageable pageable);
+
+    @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.category) = LOWER(:category)")
+    Page<WorkEntry> findByCategoryIgnoreCase(@Param("category") String category, Pageable pageable);
+
+    @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.technology) = LOWER(:technology)")
+    Page<WorkEntry> findByTechnologyIgnoreCase(@Param("technology") String technology, Pageable pageable);
+
+    @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.status) = LOWER(:status)")
+    Page<WorkEntry> findByStatusIgnoreCase(@Param("status") String status, Pageable pageable);
+
+    @Query("""
+            SELECT w FROM WorkEntry w
+            WHERE LOWER(w.title)       LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(w.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(w.category)    LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(w.technology)  LIKE LOWER(CONCAT('%', :keyword, '%'))
+            """)
+    Page<WorkEntry> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     // ── Phase 5 — Dashboard Aggregation ───────────────────────────────────────
 

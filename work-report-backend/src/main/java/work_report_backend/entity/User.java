@@ -20,12 +20,46 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(nullable = false)
+    private String role = "USER"; // USER, ADMIN
+
+    @Column(nullable = false)
+    private String status = "ACTIVE"; // PENDING, ACTIVE, SUSPENDED, REJECTED
+
+    private String department;
+
+    private String designation;
+
+    @Column(name = "employee_id")
+    private String employeeId;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "approved_by")
+    private String approvedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (role == null || role.isBlank()) {
+            role = "USER";
+        }
+        if (status == null || status.isBlank()) {
+            status = "ACTIVE";
+        }
     }
 
     public User() {
@@ -35,6 +69,8 @@ public class User {
         this.name = name;
         this.email = email;
         this.password = password;
+        this.role = "USER";
+        this.status = "ACTIVE";
     }
 
     public User(Long id, String name, String email, String password, LocalDateTime createdAt) {
@@ -43,6 +79,8 @@ public class User {
         this.email = email;
         this.password = password;
         this.createdAt = createdAt;
+        this.role = "USER";
+        this.status = "ACTIVE";
     }
 
     public Long getId() {
@@ -77,11 +115,83 @@ public class User {
         this.password = password;
     }
 
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getDesignation() {
+        return designation;
+    }
+
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
+
+    public String getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Organization getOrganization() {
+        return organization;
+    }
+
+    public void setOrganization(Organization organization) {
+        this.organization = organization;
     }
 }

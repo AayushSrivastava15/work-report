@@ -24,12 +24,21 @@ public class WorkEntryRequest {
 
     @NotBlank(message = "Status is required")
     @Pattern(
-            regexp = "^(Completed|In Progress|Pending|Blocked)$",
-            message = "Status must be one of: Completed, In Progress, Pending, Blocked"
+            regexp = "^(?i)(Completed|In Progress|Pending|Blocked|Draft|Submitted|Approved|Rejected)$",
+            message = "Status must be one of: Draft, Submitted, Pending, Approved, Rejected, Completed, In Progress, Blocked"
     )
     private String status;
 
     public WorkEntryRequest() {
+    }
+
+    public WorkEntryRequest(LocalDate date, String title, String description, String category, String technology, String status) {
+        this.date = date;
+        this.title = title;
+        this.description = description;
+        this.category = category;
+        this.technology = technology;
+        this.status = status;
     }
 
     public LocalDate getDate() {
