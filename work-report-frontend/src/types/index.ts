@@ -15,6 +15,9 @@ export interface UserResponse {
   organizationName?: string;
   organizationCode?: string;
   organizationType?: string;
+  teamId?: number;
+  teamName?: string;
+  isManager?: boolean;
 }
 
 export interface UserRequest {
@@ -30,6 +33,43 @@ export interface UserRequest {
   companyName?: string;
   organizationCode?: string;
   registrationMode?: string;
+  teamId?: number;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  description?: string;
+  organizationId: number;
+  organizationName?: string;
+  managerId?: number;
+  managerName?: string;
+  managerEmail?: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface TeamRequest {
+  name: string;
+  description?: string;
+  managerId?: number | null;
+}
+
+export interface EffectivePermissionsResponse {
+  userId: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  organizationId: number;
+  organizationName: string;
+  organizationCode: string;
+  teamId?: number;
+  teamName?: string;
+  isManager: boolean;
+  managedTeamId?: number;
+  managedTeamName?: string;
+  permissions: string[];
 }
 
 export interface AdminUserStatsResponse {
@@ -78,6 +118,11 @@ export interface WorkEntryResponse {
   status: string;
   projectId: number;
   projectName: string;
+  userId?: number;
+  userName?: string;
+  userEmail?: string;
+  teamId?: number;
+  teamName?: string;
   submittedAt?: string;
   reviewerId?: number;
   reviewerName?: string;

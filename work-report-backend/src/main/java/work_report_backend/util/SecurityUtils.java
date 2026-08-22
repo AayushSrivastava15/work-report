@@ -136,17 +136,30 @@ public final class SecurityUtils {
     }
 
     public static void requireAdminRole(UserRepository userRepository) {
+        requireRole(userRepository, "ADMIN");
+    }
+
+    public static void requireAdminOrManagerRole(UserRepository userRepository) {
+        requireRole(userRepository, "ADMIN", "MANAGER");
+    }
+
+    public static void requireRole(UserRepository userRepository, String... allowedRoles) {
         String email = getCurrentUserEmail().orElse(null);
         if (email == null || userRepository == null) {
-            return;
+            throw new AccessDeniedException("Unauthorized: Full authentication is required.");
         }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AccessDeniedException("Unauthorized: Authenticated user not found"));
 
-        if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
-            throw new AccessDeniedException("Access denied: Administrative privileges required.");
+        String userRole = user.getRole() != null ? user.getRole().toUpperCase() : "USER";
+        for (String role : allowedRoles) {
+            if (role.equalsIgnoreCase(userRole)) {
+                return;
+            }
         }
+
+        throw new AccessDeniedException("Access denied: You do not have the required role privileges.");
     }
 
     public static boolean isAuthenticated() {

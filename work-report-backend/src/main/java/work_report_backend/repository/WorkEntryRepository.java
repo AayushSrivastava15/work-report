@@ -32,6 +32,33 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
 
     List<WorkEntry> findByOrganizationId(Long organizationId);
 
+    // Team Scoped Queries
+    @Query("""
+        SELECT w FROM WorkEntry w
+        WHERE w.user.team.id = :teamId
+          AND w.organization.id = :organizationId
+        ORDER BY w.date DESC, w.id DESC
+    """)
+    Page<WorkEntry> findByTeamIdAndOrg(
+            @Param("teamId") Long teamId,
+            @Param("organizationId") Long organizationId,
+            Pageable pageable
+    );
+
+    @Query("""
+        SELECT w FROM WorkEntry w
+        WHERE w.user.team.id = :teamId
+          AND w.organization.id = :organizationId
+          AND w.status = :status
+        ORDER BY w.date DESC, w.id DESC
+    """)
+    Page<WorkEntry> findByTeamIdAndOrgAndStatus(
+            @Param("teamId") Long teamId,
+            @Param("organizationId") Long organizationId,
+            @Param("status") String status,
+            Pageable pageable
+    );
+
     // ── Phase 4 — Filtering & Search (List versions) ─────────────────────────
 
     // 1. Filter by date range (inclusive)

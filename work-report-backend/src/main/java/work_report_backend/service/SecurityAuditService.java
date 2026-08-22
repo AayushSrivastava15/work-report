@@ -54,6 +54,11 @@ public class SecurityAuditService {
         auditLog.info("EVENT=REPORT_ACTION action='{}' reportId={} actor='{}' orgId={}", action, reportId, actorEmail, orgId);
     }
 
+    public void logTeamAction(String action, Long teamId, String details, String actorEmail, Long orgId) {
+        auditLog.info("EVENT=TEAM_ACTION action='{}' teamId={} details='{}' actor='{}' orgId={}",
+                action, teamId, details, actorEmail, orgId);
+    }
+
     public void logAccessDenied(String resource, String actorEmail, String reason) {
         auditLog.warn("EVENT=ACCESS_DENIED resource='{}' actor='{}' reason='{}'", resource, actorEmail, reason);
     }

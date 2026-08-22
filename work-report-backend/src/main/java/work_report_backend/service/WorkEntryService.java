@@ -16,6 +16,7 @@ import work_report_backend.exception.ResourceNotFoundException;
 import work_report_backend.repository.ProjectRepository;
 import work_report_backend.repository.UserRepository;
 import work_report_backend.repository.WorkEntryRepository;
+import work_report_backend.util.SecurityUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,15 +29,21 @@ public class WorkEntryService {
     private final WorkEntryRepository workEntryRepository;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
+    private final RbacService rbacService;
+    private final SecurityAuditService securityAuditService;
 
     public WorkEntryService(
             WorkEntryRepository workEntryRepository,
             UserRepository userRepository,
-            ProjectRepository projectRepository
+            ProjectRepository projectRepository,
+            RbacService rbacService,
+            SecurityAuditService securityAuditService
     ) {
         this.workEntryRepository = workEntryRepository;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
+        this.rbacService = rbacService;
+        this.securityAuditService = securityAuditService;
     }
 
     // ── Phase 3 & 14 — CRUD & Lifecycle ──────────────────────────────────────────
@@ -65,11 +72,21 @@ public class WorkEntryService {
         workEntry.setTechnology(request.getTechnology().trim());
         workEntry.setOrganization(user.getOrganization());
 
-        String initialStatus = request.getStatus() != null ? request.getStatus().trim() : "DRAFT";
-        workEntry.setStatus(initialStatus);
+        boolean isIndividual = user.getOrganization() != null &&
+                "INDIVIDUAL".equalsIgnoreCase(user.getOrganization().getType());
 
-        if ("PENDING".equalsIgnoreCase(initialStatus) || "SUBMITTED".equalsIgnoreCase(initialStatus)) {
+        String initialStatus = request.getStatus() != null ? request.getStatus().trim().toUpperCase() : "DRAFT";
+        if (isIndividual && ("PENDING".equals(initialStatus) || "SUBMITTED".equals(initialStatus) || "COMPLETED".equals(initialStatus) || "APPROVED".equals(initialStatus))) {
+            workEntry.setStatus("APPROVED");
             workEntry.setSubmittedAt(LocalDateTime.now());
+            workEntry.setReviewedAt(LocalDateTime.now());
+            workEntry.setReviewerId(user.getId());
+            workEntry.setReviewerName(user.getName());
+        } else {
+            workEntry.setStatus(initialStatus);
+            if ("PENDING".equalsIgnoreCase(initialStatus) || "SUBMITTED".equalsIgnoreCase(initialStatus)) {
+                workEntry.setSubmittedAt(LocalDateTime.now());
+            }
         }
 
         workEntry.setUser(user);
@@ -107,7 +124,7 @@ public class WorkEntryService {
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
         return workEntryRepository
-                .findByUserIdOrderByDateDesc(userId)
+                .findByUserId(userId)
                 .stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
@@ -150,8 +167,11 @@ public class WorkEntryService {
         WorkEntry existingEntry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
+        boolean isIndividual = existingEntry.getOrganization() != null &&
+                "INDIVIDUAL".equalsIgnoreCase(existingEntry.getOrganization().getType());
+
         String currentStatus = existingEntry.getStatus() != null ? existingEntry.getStatus().toUpperCase() : "DRAFT";
-        if ("APPROVED".equals(currentStatus)) {
+        if (!isIndividual && "APPROVED".equals(currentStatus)) {
             throw new IllegalStateException("Approved work entries are locked and cannot be directly modified.");
         }
 
@@ -160,7 +180,9 @@ public class WorkEntryService {
         existingEntry.setDescription(request.getDescription().trim());
         existingEntry.setCategory(request.getCategory().trim());
         existingEntry.setTechnology(request.getTechnology().trim());
-        existingEntry.setStatus(request.getStatus());
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            existingEntry.setStatus(request.getStatus());
+        }
 
         WorkEntry saved = workEntryRepository.save(existingEntry);
         return convertToResponse(saved);
@@ -171,8 +193,11 @@ public class WorkEntryService {
         WorkEntry existing = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
+        boolean isIndividual = existing.getOrganization() != null &&
+                "INDIVIDUAL".equalsIgnoreCase(existing.getOrganization().getType());
+
         String currentStatus = existing.getStatus() != null ? existing.getStatus().toUpperCase() : "DRAFT";
-        if ("APPROVED".equals(currentStatus)) {
+        if (!isIndividual && "APPROVED".equals(currentStatus)) {
             throw new IllegalStateException("Approved work reports are archived and cannot be deleted.");
         }
 
@@ -181,26 +206,41 @@ public class WorkEntryService {
 
     // ── Phase 14 — Workflow Lifecycle Operations ───────────────────────────────
 
-    // 1. Submit Report for Review (DRAFT -> PENDING)
+    // 1. Submit Report for Review (DRAFT -> PENDING or DRAFT -> APPROVED for Individual)
     public WorkEntryResponse submitWorkEntry(Long id) {
         WorkEntry entry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
-        entry.setStatus("PENDING");
-        entry.setSubmittedAt(LocalDateTime.now());
-        entry.setRejectionReason(null);
+        boolean isIndividual = entry.getOrganization() != null &&
+                "INDIVIDUAL".equalsIgnoreCase(entry.getOrganization().getType());
+
+        if (isIndividual) {
+            entry.setStatus("APPROVED");
+            entry.setSubmittedAt(LocalDateTime.now());
+            entry.setReviewedAt(LocalDateTime.now());
+            entry.setReviewerId(entry.getUser() != null ? entry.getUser().getId() : null);
+            entry.setReviewerName(entry.getUser() != null ? entry.getUser().getName() : "Self");
+            entry.setRejectionReason(null);
+        } else {
+            entry.setStatus("PENDING");
+            entry.setSubmittedAt(LocalDateTime.now());
+            entry.setRejectionReason(null);
+        }
 
         WorkEntry saved = workEntryRepository.save(entry);
         return convertToResponse(saved);
     }
 
-    // 2. Withdraw Submitted Report (PENDING -> DRAFT)
+    // 2. Withdraw Submitted Report (PENDING/APPROVED -> DRAFT)
     public WorkEntryResponse withdrawWorkEntry(Long id) {
         WorkEntry entry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
+        boolean isIndividual = entry.getOrganization() != null &&
+                "INDIVIDUAL".equalsIgnoreCase(entry.getOrganization().getType());
+
         String status = entry.getStatus() != null ? entry.getStatus().toUpperCase() : "";
-        if (!"PENDING".equals(status) && !"SUBMITTED".equals(status)) {
+        if (!isIndividual && !"PENDING".equals(status) && !"SUBMITTED".equals(status)) {
             throw new IllegalStateException("Only pending entries awaiting review can be withdrawn to draft.");
         }
 
@@ -210,33 +250,90 @@ public class WorkEntryService {
     }
 
     // 3. Approve Report (PENDING -> APPROVED)
-    public WorkEntryResponse approveWorkEntry(Long id, Long reviewerId, String reviewerName) {
+    public WorkEntryResponse approveWorkEntry(Long id, User reviewer) {
         WorkEntry entry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
+        if (reviewer != null) {
+            if (!rbacService.canReviewWorkEntry(reviewer, entry)) {
+                if (entry.getUser() != null && reviewer.getId().equals(entry.getUser().getId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot approve your own work report.");
+                }
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to approve this report.");
+            }
+        }
+
         entry.setStatus("APPROVED");
-        entry.setReviewerId(reviewerId);
-        entry.setReviewerName(reviewerName);
+        entry.setReviewerId(reviewer != null ? reviewer.getId() : null);
+        entry.setReviewerName(reviewer != null ? reviewer.getName() : "Administrator");
         entry.setReviewedAt(LocalDateTime.now());
         entry.setRejectionReason(null);
 
         WorkEntry saved = workEntryRepository.save(entry);
+        if (reviewer != null && saved.getOrganization() != null) {
+            securityAuditService.logReportAction("REPORT_APPROVED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
+        }
         return convertToResponse(saved);
     }
 
+    public WorkEntryResponse approveWorkEntry(Long id, Long reviewerId, String reviewerName) {
+        User reviewer = reviewerId != null ? userRepository.findById(reviewerId).orElse(null) : null;
+        return approveWorkEntry(id, reviewer);
+    }
+
     // 4. Reject Report (PENDING -> REJECTED)
-    public WorkEntryResponse rejectWorkEntry(Long id, String reason, Long reviewerId, String reviewerName) {
+    public WorkEntryResponse rejectWorkEntry(Long id, String reason, User reviewer) {
         WorkEntry entry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
+        if (reviewer != null) {
+            if (entry.getUser() != null && reviewer.getId().equals(entry.getUser().getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot reject your own work report.");
+            }
+            if (!rbacService.canReviewWorkEntry(reviewer, entry)) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to review this report.");
+            }
+        }
+
         entry.setStatus("REJECTED");
         entry.setRejectionReason(reason);
-        entry.setReviewerId(reviewerId);
-        entry.setReviewerName(reviewerName);
+        entry.setReviewerId(reviewer != null ? reviewer.getId() : null);
+        entry.setReviewerName(reviewer != null ? reviewer.getName() : "Administrator");
         entry.setReviewedAt(LocalDateTime.now());
 
         WorkEntry saved = workEntryRepository.save(entry);
+        if (reviewer != null && saved.getOrganization() != null) {
+            securityAuditService.logReportAction("REPORT_REJECTED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
+        }
         return convertToResponse(saved);
+    }
+
+    public WorkEntryResponse rejectWorkEntry(Long id, String reason, Long reviewerId, String reviewerName) {
+        User reviewer = reviewerId != null ? userRepository.findById(reviewerId).orElse(null) : null;
+        return rejectWorkEntry(id, reason, reviewer);
+    }
+
+    // 6. Get Work Entries for Team (Paginated)
+    public PageResponse<WorkEntryResponse> getWorkEntriesByTeam(Long teamId, String status, int page, int size) {
+        int cappedSize = Math.max(1, Math.min(size, 100));
+        int validPage = Math.max(0, page);
+
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        if (caller == null || caller.getOrganization() == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized: No organization found.");
+        }
+
+        Long orgId = caller.getOrganization().getId();
+        Pageable pageable = PageRequest.of(validPage, cappedSize, Sort.by(Sort.Direction.DESC, "date", "id"));
+
+        Page<WorkEntry> entryPage;
+        if (status != null && !status.isBlank()) {
+            entryPage = workEntryRepository.findByTeamIdAndOrgAndStatus(teamId, orgId, status.trim().toUpperCase(), pageable);
+        } else {
+            entryPage = workEntryRepository.findByTeamIdAndOrg(teamId, orgId, pageable);
+        }
+
+        return PageResponse.of(entryPage, this::convertToResponse);
     }
 
     // 5. Resubmit Rejected Report (REJECTED -> PENDING)
@@ -451,7 +548,7 @@ public class WorkEntryService {
 
     // Convert Entity -> Response DTO
     public WorkEntryResponse convertToResponse(WorkEntry workEntry) {
-        return new WorkEntryResponse(
+        WorkEntryResponse res = new WorkEntryResponse(
                 workEntry.getId(),
                 workEntry.getDate(),
                 workEntry.getTitle(),
@@ -469,5 +566,17 @@ public class WorkEntryService {
                 workEntry.getCreatedAt(),
                 workEntry.getUpdatedAt()
         );
+
+        if (workEntry.getUser() != null) {
+            res.setUserId(workEntry.getUser().getId());
+            res.setUserName(workEntry.getUser().getName());
+            res.setUserEmail(workEntry.getUser().getEmail());
+            if (workEntry.getUser().getTeam() != null) {
+                res.setTeamId(workEntry.getUser().getTeam().getId());
+                res.setTeamName(workEntry.getUser().getTeam().getName());
+            }
+        }
+
+        return res;
     }
 }

@@ -134,36 +134,38 @@ public class WorkEntryController {
         return ResponseEntity.ok(workEntryService.withdrawWorkEntry(id));
     }
 
-    // 10. Approve Work Entry (Pending -> Approved) (Admin Only)
+    // 10. Approve Work Entry (Pending -> Approved) (Admin or Authorized Team Manager)
     @PutMapping("/{id}/approve")
     public ResponseEntity<WorkEntryResponse> approveWorkEntry(@PathVariable Long id) {
-        if (userRepository != null) {
-            SecurityUtils.requireAdminRole(userRepository);
-        }
         String reviewerEmail = SecurityUtils.getCurrentUserEmail().orElse("admin");
         User reviewer = userRepository != null ? userRepository.findByEmail(reviewerEmail).orElse(null) : null;
-        Long reviewerId = reviewer != null ? reviewer.getId() : null;
-        String reviewerName = reviewer != null ? reviewer.getName() : "Administrator";
-
-        return ResponseEntity.ok(workEntryService.approveWorkEntry(id, reviewerId, reviewerName));
+        return ResponseEntity.ok(workEntryService.approveWorkEntry(id, reviewer));
     }
 
-    // 11. Reject Work Entry (Pending -> Rejected) (Admin Only)
+    // 11. Reject Work Entry (Pending -> Rejected) (Admin or Authorized Team Manager)
     @PutMapping("/{id}/reject")
     public ResponseEntity<WorkEntryResponse> rejectWorkEntry(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body
     ) {
-        if (userRepository != null) {
-            SecurityUtils.requireAdminRole(userRepository);
-        }
         String reason = body != null ? body.get("reason") : null;
         String reviewerEmail = SecurityUtils.getCurrentUserEmail().orElse("admin");
         User reviewer = userRepository != null ? userRepository.findByEmail(reviewerEmail).orElse(null) : null;
-        Long reviewerId = reviewer != null ? reviewer.getId() : null;
-        String reviewerName = reviewer != null ? reviewer.getName() : "Administrator";
+        return ResponseEntity.ok(workEntryService.rejectWorkEntry(id, reason, reviewer));
+    }
 
-        return ResponseEntity.ok(workEntryService.rejectWorkEntry(id, reason, reviewerId, reviewerName));
+    // 11b. Get Team Work Entries for Manager / Admin Review (Paginated)
+    @GetMapping("/team/{teamId}")
+    public ResponseEntity<PageResponse<WorkEntryResponse>> getWorkEntriesByTeam(
+            @PathVariable Long teamId,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        if (userRepository != null) {
+            SecurityUtils.requireAdminOrManagerRole(userRepository);
+        }
+        return ResponseEntity.ok(workEntryService.getWorkEntriesByTeam(teamId, status, page, size));
     }
 
     // 12. Resubmit Work Entry (Rejected -> Pending)

@@ -30,13 +30,15 @@ import {
   FolderKanban
 } from 'lucide-react';
 
+import { useAuth } from '../auth/AuthContext';
+
 const CATEGORIES = ['Development', 'Bug Fix', 'Testing', 'Documentation', 'Code Review', 'DevOps', 'Research'];
 
 type StatusTab = 'ALL' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export const WorkEntriesPage: React.FC = () => {
-  const { currentUserId, currentUser } = useUser();
-  const isAdmin = currentUser?.role === 'ADMIN';
+  const { currentUserId } = useUser();
+  const { currentUser, isManager, isAdmin, effectivePermissions } = useAuth();
   const { showSuccess, showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -44,6 +46,9 @@ export const WorkEntriesPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Scope selection: 'MY' or 'TEAM'
+  const [viewScope, setViewScope] = useState<'MY' | 'TEAM'>('MY');
 
   // Status Tab selection
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL');
@@ -108,7 +113,8 @@ export const WorkEntriesPage: React.FC = () => {
     targetSize = size,
     targetTab = activeTab,
     targetMode = mode,
-    keyword = searchKeyword
+    keyword = searchKeyword,
+    targetScope = viewScope
   ) => {
     if (!currentUserId) return;
     try {
@@ -116,7 +122,19 @@ export const WorkEntriesPage: React.FC = () => {
       setError(null);
 
       let data;
-      if (targetTab !== 'ALL') {
+      if (targetScope === 'TEAM') {
+        const teamId = currentUser?.teamId || effectivePermissions?.managedTeamId;
+        if (teamId) {
+          data = await workEntryApi.getWorkEntriesByTeam(
+            teamId,
+            targetTab !== 'ALL' ? targetTab : undefined,
+            targetPage,
+            targetSize
+          );
+        } else {
+          data = { content: [], page: 0, size: targetSize, totalPages: 0, totalElements: 0, first: true, last: true };
+        }
+      } else if (targetTab !== 'ALL') {
         data = await workEntryApi.filterByStatus(targetTab, targetPage, targetSize);
       } else if (targetMode === 'search' && keyword.trim()) {
         data = await workEntryApi.searchWorkEntries(keyword.trim(), targetPage, targetSize);
@@ -166,8 +184,8 @@ export const WorkEntriesPage: React.FC = () => {
   }, [currentUserId]);
 
   useEffect(() => {
-    fetchEntries(page, size, activeTab, mode, searchKeyword);
-  }, [currentUserId, page, size, activeTab]);
+    fetchEntries(page, size, activeTab, mode, searchKeyword, viewScope);
+  }, [currentUserId, page, size, activeTab, viewScope]);
 
   // Handle URL query triggers: ?new=1, ?projectId=..., ?edit=..., ?status=...
   useEffect(() => {
@@ -313,7 +331,7 @@ export const WorkEntriesPage: React.FC = () => {
     setEditingEntry(null);
   };
 
-  const handleSaveEntry = async (statusTarget: 'DRAFT' | 'PENDING') => {
+  const handleSaveEntry = async (statusTarget: 'DRAFT' | 'PENDING' | 'APPROVED') => {
     if (!validateForm(true)) return;
 
     try {
@@ -329,8 +347,10 @@ export const WorkEntriesPage: React.FC = () => {
         payload
       );
 
-      if (statusTarget === 'PENDING') {
-        showSuccess(`Work report "${created.title}" submitted for review!`);
+      if (statusTarget === 'APPROVED') {
+        showSuccess(isIndividual ? `Work entry "${created.title}" marked as completed!` : `Work report "${created.title}" approved!`);
+      } else if (statusTarget === 'PENDING') {
+        showSuccess(isIndividual ? `Work entry "${created.title}" saved as in progress!` : `Work report "${created.title}" submitted for review!`);
       } else {
         showSuccess(`Draft "${created.title}" saved successfully!`);
       }
@@ -350,7 +370,7 @@ export const WorkEntriesPage: React.FC = () => {
     }
   };
 
-  const handleUpdateEntry = async (statusTarget?: 'DRAFT' | 'PENDING') => {
+  const handleUpdateEntry = async (statusTarget?: 'DRAFT' | 'PENDING' | 'APPROVED') => {
     if (!editingEntry || !validateForm(false)) return;
 
     try {
@@ -367,7 +387,11 @@ export const WorkEntriesPage: React.FC = () => {
           status: statusTarget || formData.status,
         };
         updated = await workEntryApi.updateWorkEntry(editingEntry.id, payload);
-        showSuccess(`Work entry "${updated.title}" updated successfully!`);
+        if (statusTarget === 'APPROVED') {
+          showSuccess(isIndividual ? `Work entry "${updated.title}" marked as completed!` : `Work report "${updated.title}" approved!`);
+        } else {
+          showSuccess(`Work entry "${updated.title}" updated successfully!`);
+        }
       }
 
       setEditingEntry(null);
@@ -440,12 +464,17 @@ export const WorkEntriesPage: React.FC = () => {
 
   const handleApproveConfirm = async () => {
     if (!approvingEntry) return;
+    if (approvingEntry.userId === currentUserId) {
+      showError('Anti-Self-Approval: You cannot approve your own work report.', 'Access Denied');
+      setApprovingEntry(null);
+      return;
+    }
     try {
       setActionLoading(true);
       await workEntryApi.approve(approvingEntry.id);
       showSuccess(`Report "${approvingEntry.title}" approved.`);
       setApprovingEntry(null);
-      fetchEntries(page, size, activeTab, mode, searchKeyword);
+      fetchEntries(page, size, activeTab, mode, searchKeyword, viewScope);
     } catch (err: any) {
       showError(err.message || 'Failed to approve report.');
     } finally {
@@ -455,19 +484,26 @@ export const WorkEntriesPage: React.FC = () => {
 
   const handleRejectConfirm = async () => {
     if (!rejectingEntry) return;
+    if (rejectingEntry.userId === currentUserId) {
+      showError('Anti-Self-Approval: You cannot review your own work report.', 'Access Denied');
+      setRejectingEntry(null);
+      return;
+    }
     try {
       setActionLoading(true);
       await workEntryApi.reject(rejectingEntry.id, rejectionReasonInput.trim());
       showSuccess(`Report "${rejectingEntry.title}" rejected with feedback.`);
       setRejectingEntry(null);
       setRejectionReasonInput('');
-      fetchEntries(page, size, activeTab, mode, searchKeyword);
+      fetchEntries(page, size, activeTab, mode, searchKeyword, viewScope);
     } catch (err: any) {
       showError(err.message || 'Failed to reject report.');
     } finally {
       setActionLoading(false);
     }
   };
+
+  const isIndividual = currentUser?.organizationType === 'INDIVIDUAL';
 
   const getStatusBadge = (status: string) => {
     const upper = (status || 'DRAFT').toUpperCase();
@@ -477,7 +513,7 @@ export const WorkEntriesPage: React.FC = () => {
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <CheckCircle2 className="w-3 h-3 mr-1" />
-            Approved
+            {isIndividual ? 'Completed' : 'Approved'}
           </span>
         );
       case 'PENDING':
@@ -486,7 +522,7 @@ export const WorkEntriesPage: React.FC = () => {
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             <Clock className="w-3 h-3 mr-1" />
-            Pending Review
+            {isIndividual ? 'In Progress' : 'Pending Review'}
           </span>
         );
       case 'REJECTED':
@@ -525,8 +561,12 @@ export const WorkEntriesPage: React.FC = () => {
             Work Reports & Entries
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Track daily tasks, submit reports for review, and inspect approval lifecycle for{' '}
-            <span className="font-semibold text-slate-700">{currentUser?.name || 'User'}</span>
+            {isIndividual
+              ? 'Track daily work, log deliverables, and manage your projects.'
+              : `Track daily tasks, submit reports for review, and inspect approval lifecycle for `}
+            {!isIndividual && (
+              <span className="font-semibold text-slate-700">{currentUser?.name || 'User'}</span>
+            )}
           </p>
         </div>
 
@@ -539,6 +579,37 @@ export const WorkEntriesPage: React.FC = () => {
         </button>
       </div>
 
+      {/* SCOPE TOGGLE (For Corporate Managers & Admins only) */}
+      {!isIndividual && (isAdmin || isManager) && (
+        <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl max-w-fit">
+          <button
+            onClick={() => setViewScope('MY')}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              viewScope === 'MY'
+                ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            My Work Entries
+          </button>
+          <button
+            onClick={() => setViewScope('TEAM')}
+            className={`flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              viewScope === 'TEAM'
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-indigo-700 hover:bg-indigo-50'
+            }`}
+          >
+            <span>Team Review Submissions</span>
+            {currentUser?.teamName && (
+              <span className="px-1.5 py-0.5 bg-indigo-800 text-[10px] text-white rounded">
+                {currentUser.teamName}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* STATUS LIFECYCLE TABS */}
       <div className="flex items-center space-x-1 border-b border-slate-200 overflow-x-auto pb-px">
         <button
@@ -550,7 +621,7 @@ export const WorkEntriesPage: React.FC = () => {
           }`}
         >
           <FolderKanban className="w-3.5 h-3.5 mr-1.5" />
-          All Reports
+          {isIndividual ? 'All Tasks & Work' : 'All Reports'}
         </button>
 
         <button
@@ -562,7 +633,7 @@ export const WorkEntriesPage: React.FC = () => {
           }`}
         >
           <FileEdit className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-          My Drafts
+          {isIndividual ? 'Drafts' : 'My Drafts'}
         </button>
 
         <button
@@ -574,7 +645,7 @@ export const WorkEntriesPage: React.FC = () => {
           }`}
         >
           <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-          Pending Review
+          {isIndividual ? 'In Progress' : 'Pending Review'}
         </button>
 
         <button
@@ -586,20 +657,22 @@ export const WorkEntriesPage: React.FC = () => {
           }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-          Approved
+          {isIndividual ? 'Completed' : 'Approved'}
         </button>
 
-        <button
-          onClick={() => handleTabChange('REJECTED')}
-          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'REJECTED'
-              ? 'bg-white text-rose-700 border-t-2 border-l border-r border-t-rose-600 border-l-slate-200 border-r-slate-200 -mb-px'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
-          Rejected Feedback
-        </button>
+        {!isIndividual && (
+          <button
+            onClick={() => handleTabChange('REJECTED')}
+            className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'REJECTED'
+                ? 'bg-white text-rose-700 border-t-2 border-l border-r border-t-rose-600 border-l-slate-200 border-r-slate-200 -mb-px'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
+            Rejected Feedback
+          </button>
+        )}
       </div>
 
       {/* SEARCH AND FILTER TOOLBAR */}
@@ -866,71 +939,132 @@ export const WorkEntriesPage: React.FC = () => {
                         className="px-5 py-4 whitespace-nowrap text-right space-x-1"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Draft: Submit */}
-                        {isDraft && (
-                          <button
-                            onClick={() => setSubmittingEntry(entry)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                            title="Submit for Review"
-                          >
-                            <Send className="w-4 h-4 text-blue-600" />
-                          </button>
-                        )}
-
-                        {/* Pending: Withdraw */}
-                        {isPending && !isAdmin && (
-                          <button
-                            onClick={() => setWithdrawingEntry(entry)}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
-                            title="Withdraw to Draft"
-                          >
-                            <RotateCcw className="w-4 h-4 text-amber-600" />
-                          </button>
-                        )}
-
-                        {/* Pending: Admin Approve / Reject */}
-                        {isPending && isAdmin && (
+                        {/* SOLO FREELANCER ACTIONS */}
+                        {isIndividual && (
                           <>
+                            {/* Mark Completed (if Draft or In Progress) */}
+                            {(isDraft || isPending) && (
+                              <button
+                                onClick={() => setApprovingEntry(entry)}
+                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                title="Mark as Completed"
+                              >
+                                <Check className="w-4 h-4 text-emerald-600" />
+                              </button>
+                            )}
+
+                            {/* Reopen as Draft (if In Progress or Completed) */}
+                            {(isPending || isApproved) && (
+                              <button
+                                onClick={() => setWithdrawingEntry(entry)}
+                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
+                                title="Reopen as Draft"
+                              >
+                                <RotateCcw className="w-4 h-4 text-amber-600" />
+                              </button>
+                            )}
+
+                            {/* Edit Entry */}
                             <button
-                              onClick={() => setApprovingEntry(entry)}
-                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                              title="Approve Report"
+                              onClick={() => handleOpenEdit(entry)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                              title="Edit Entry"
                             >
-                              <Check className="w-4 h-4 text-emerald-600" />
+                              <Edit2 className="w-4 h-4" />
                             </button>
+
+                            {/* Delete Entry */}
                             <button
-                              onClick={() => {
-                                setRejectingEntry(entry);
-                                setRejectionReasonInput('');
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Reject Report"
+                              onClick={() => setDeletingEntry(entry)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                              title="Delete Entry"
                             >
-                              <X className="w-4 h-4 text-rose-600" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </>
                         )}
 
-                        {/* Edit: Allowed on Draft, Rejected, or by Admin */}
-                        {(isDraft || isRejected || isAdmin) && (
-                          <button
-                            onClick={() => handleOpenEdit(entry)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                            title={isRejected ? 'Edit & Resubmit' : 'Edit Entry'}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {/* CORPORATE / COMPANY WORKFLOW ACTIONS */}
+                        {!isIndividual && (
+                          <>
+                            {/* Draft: Submit */}
+                            {isDraft && (
+                              <button
+                                onClick={() => setSubmittingEntry(entry)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                title="Submit for Review"
+                              >
+                                <Send className="w-4 h-4 text-blue-600" />
+                              </button>
+                            )}
 
-                        {/* Delete: Allowed on Draft or by Admin */}
-                        {(isDraft || isAdmin) && !isApproved && (
-                          <button
-                            onClick={() => setDeletingEntry(entry)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                            title="Delete Entry"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            {/* Pending: Withdraw (Allowed for entry author) */}
+                            {isPending && entry.userId === currentUserId && (
+                              <button
+                                onClick={() => setWithdrawingEntry(entry)}
+                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
+                                title="Withdraw to Draft"
+                              >
+                                <RotateCcw className="w-4 h-4 text-amber-600" />
+                              </button>
+                            )}
+
+                            {/* Pending: Admin & Manager Approve / Reject */}
+                            {isPending && (isAdmin || isManager) && (
+                              <>
+                                {entry.userId === currentUserId ? (
+                                  <span
+                                    title="Anti-Self-Approval: You cannot approve your own work report."
+                                    className="inline-block p-1.5 text-slate-300 cursor-not-allowed"
+                                  >
+                                    <Check className="w-4 h-4 text-slate-300" />
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => setApprovingEntry(entry)}
+                                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                      title="Approve Report"
+                                    >
+                                      <Check className="w-4 h-4 text-emerald-600" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setRejectingEntry(entry);
+                                        setRejectionReasonInput('');
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                      title="Reject Report"
+                                    >
+                                      <X className="w-4 h-4 text-rose-600" />
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            )}
+
+                            {/* Edit: Allowed on Draft, Rejected, or by Admin */}
+                            {(isDraft || isRejected || isAdmin) && (
+                              <button
+                                onClick={() => handleOpenEdit(entry)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                title={isRejected ? 'Edit & Resubmit' : 'Edit Entry'}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Delete: Allowed on Draft or by Admin */}
+                            {(isDraft || isAdmin) && !isApproved && (
+                              <button
+                                onClick={() => setDeletingEntry(entry)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                                title="Delete Entry"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </>
                         )}
 
                         <button
@@ -1123,15 +1257,38 @@ export const WorkEntriesPage: React.FC = () => {
                 <FileEdit className="w-3.5 h-3.5 inline mr-1.5 text-slate-500" />
                 Save as Draft
               </button>
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={() => handleSaveEntry('PENDING')}
-                className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5 inline mr-1.5" />
-                {actionLoading ? 'Submitting...' : 'Submit for Review'}
-              </button>
+              {isIndividual ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleSaveEntry('PENDING')}
+                    className="px-3.5 py-2 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5 inline mr-1.5 text-amber-600" />
+                    Save as In Progress
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleSaveEntry('APPROVED')}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5 inline mr-1.5" />
+                    {actionLoading ? 'Saving...' : 'Mark as Completed'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleSaveEntry('PENDING')}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5 inline mr-1.5" />
+                  {actionLoading ? 'Submitting...' : 'Submit for Review'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1278,7 +1435,18 @@ export const WorkEntriesPage: React.FC = () => {
               >
                 Save Changes
               </button>
-              {editingEntry?.status?.toUpperCase() === 'REJECTED' && (
+              {isIndividual && (
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleUpdateEntry('APPROVED')}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5 inline mr-1.5" />
+                  {actionLoading ? 'Saving...' : 'Save & Mark Completed'}
+                </button>
+              )}
+              {!isIndividual && editingEntry?.status?.toUpperCase() === 'REJECTED' && (
                 <button
                   type="button"
                   disabled={actionLoading}
@@ -1298,12 +1466,18 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal
         isOpen={!!submittingEntry}
         onClose={() => setSubmittingEntry(null)}
-        title="Submit Work Report for Review"
+        title={isIndividual ? "Complete Work Report" : "Submit Work Report for Review"}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Are you sure you want to submit this work report? After submission, it will be marked as{' '}
-            <strong className="text-amber-700">Pending Review</strong> and sent to your administrator for verification.
+            {isIndividual ? (
+              <>Are you sure you want to mark this work report as <strong className="text-emerald-700">Completed</strong>?</>
+            ) : (
+              <>
+                Are you sure you want to submit this work report? After submission, it will be marked as{' '}
+                <strong className="text-amber-700">Pending Review</strong> and sent to your administrator for verification.
+              </>
+            )}
           </p>
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div className="font-bold text-slate-800">{submittingEntry?.title}</div>
@@ -1324,10 +1498,21 @@ export const WorkEntriesPage: React.FC = () => {
               type="button"
               disabled={actionLoading}
               onClick={handleSubmitConfirm}
-              className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+              className={`px-4 py-2 text-sm font-semibold text-white ${
+                isIndividual ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+              } rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer`}
             >
-              <Send className="w-3.5 h-3.5 inline mr-1.5" />
-              {actionLoading ? 'Submitting...' : 'Confirm Submission'}
+              {isIndividual ? (
+                <>
+                  <Check className="w-3.5 h-3.5 inline mr-1.5" />
+                  {actionLoading ? 'Saving...' : 'Mark as Completed'}
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5 inline mr-1.5" />
+                  {actionLoading ? 'Submitting...' : 'Confirm Submission'}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1337,12 +1522,13 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal
         isOpen={!!withdrawingEntry}
         onClose={() => setWithdrawingEntry(null)}
-        title="Withdraw Submission to Draft"
+        title={isIndividual ? "Reopen as Draft" : "Withdraw Submission to Draft"}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Are you sure you want to withdraw this report? It will be moved back to{' '}
-            <strong className="text-slate-800">Draft</strong> status so you can edit and improve it.
+            {isIndividual
+              ? "Reopen this entry as a Draft? You will be able to edit and update details."
+              : "Are you sure you want to withdraw this report? It will be moved back to Draft status so you can edit and improve it."}
           </p>
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div className="font-bold text-slate-800">{withdrawingEntry?.title}</div>
@@ -1366,7 +1552,7 @@ export const WorkEntriesPage: React.FC = () => {
               className="px-4 py-2 text-sm font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 inline mr-1.5" />
-              {actionLoading ? 'Withdrawing...' : 'Withdraw to Draft'}
+              {actionLoading ? 'Reopening...' : (isIndividual ? 'Reopen as Draft' : 'Withdraw to Draft')}
             </button>
           </div>
         </div>
@@ -1376,11 +1562,13 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal
         isOpen={!!approvingEntry}
         onClose={() => setApprovingEntry(null)}
-        title="Approve Work Report"
+        title={isIndividual ? "Mark Work as Completed" : "Approve Work Report"}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Approve this submitted work report? Approved reports are locked and verified for official reports.
+            {isIndividual
+              ? "Mark this work entry as Completed? You can reopen it as a draft or edit it anytime."
+              : "Approve this submitted work report? Approved reports are locked and verified for official reports."}
           </p>
           <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
             <div className="font-bold text-emerald-900">{approvingEntry?.title}</div>
@@ -1404,7 +1592,7 @@ export const WorkEntriesPage: React.FC = () => {
               className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               <Check className="w-3.5 h-3.5 inline mr-1.5" />
-              {actionLoading ? 'Approving...' : 'Approve Report'}
+              {actionLoading ? 'Saving...' : (isIndividual ? 'Mark as Completed' : 'Approve Report')}
             </button>
           </div>
         </div>
@@ -1504,6 +1692,8 @@ export const WorkEntriesPage: React.FC = () => {
         isOpen={!!selectedEntryForDetails}
         onClose={() => setSelectedEntryForDetails(null)}
         isAdmin={isAdmin}
+        isManager={isManager}
+        isIndividual={isIndividual}
         currentUserId={currentUserId}
         onEdit={(entry) => {
           setSelectedEntryForDetails(null);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '../api/adminApi';
-import type { AdminUserStatsResponse, UserResponse } from '../types';
+import { teamApi } from '../api/teamApi';
+import type { AdminUserStatsResponse, Team, UserResponse } from '../types';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -43,11 +44,13 @@ export const AdminUsersPage: React.FC = () => {
   // Table & Filter State
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING'>('ALL');
   const [users, setUsers] = useState<UserResponse[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('ALL');
 
   // Pagination
   const [page, setPage] = useState<number>(0);
@@ -65,13 +68,17 @@ export const AdminUsersPage: React.FC = () => {
   const [reactivateModalOpen, setReactivateModalOpen] = useState<boolean>(false);
   const [roleModalOpen, setRoleModalOpen] = useState<boolean>(false);
   const [newRole, setNewRole] = useState<string>('USER');
+  const [teamModalOpen, setTeamModalOpen] = useState<boolean>(false);
+  const [newTeamId, setNewTeamId] = useState<number | ''>('');
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  // Fetch Stats
+  // Fetch Stats & Teams
   const fetchStats = useCallback(async () => {
     try {
       const data = await adminApi.getUserStats();
       setStats(data);
+      const teamList = await teamApi.getAllTeams();
+      setTeams(teamList);
     } catch {
       // Ignore or log error
     }
@@ -87,6 +94,7 @@ export const AdminUsersPage: React.FC = () => {
         status: effectiveStatus,
         role: selectedRole,
         department: selectedDepartment,
+        teamId: selectedTeamId !== 'ALL' ? Number(selectedTeamId) : undefined,
         page,
         size,
       });
@@ -99,7 +107,7 @@ export const AdminUsersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedStatus, selectedRole, selectedDepartment, keyword, page, size, showError]);
+  }, [activeTab, selectedStatus, selectedRole, selectedDepartment, selectedTeamId, keyword, page, size, showError]);
 
   useEffect(() => {
     fetchStats();
@@ -175,7 +183,7 @@ export const AdminUsersPage: React.FC = () => {
     try {
       setActionLoading(true);
       await adminApi.reactivateUser(selectedUser.id);
-      showSuccess(`Account for ${selectedUser.name} has been reactivated.`, 'User Reactivated');
+      showSuccess(`Account for ${selectedUser.name} has been reactivated and restored to Active.`, 'User Reactivated');
       setReactivateModalOpen(false);
       setSelectedUser(null);
       fetchStats();
@@ -204,11 +212,29 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
+  const handleTeamChange = async () => {
+    if (!selectedUser) return;
+    try {
+      setActionLoading(true);
+      await adminApi.updateUser(selectedUser.id, { teamId: newTeamId ? Number(newTeamId) : 0 });
+      showSuccess(`Team assignment for ${selectedUser.name} updated.`, 'Team Updated');
+      setTeamModalOpen(false);
+      setSelectedUser(null);
+      fetchStats();
+      fetchUsers();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update team assignment.', 'Team Update Error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const resetFilters = () => {
     setKeyword('');
     setSelectedStatus('ALL');
     setSelectedRole('ALL');
     setSelectedDepartment('ALL');
+    setSelectedTeamId('ALL');
     setPage(0);
   };
 
@@ -444,7 +470,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
 
         {/* Filter Controls */}
-        <div className="p-4 border-b border-slate-100 bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 border-b border-slate-100 bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Keyword Search */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -491,8 +517,28 @@ export const AdminUsersPage: React.FC = () => {
               className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
             >
               <option value="ALL">Role: All Roles</option>
-              <option value="USER">Employee (USER)</option>
+              <option value="USER">Member (USER)</option>
+              <option value="MANAGER">Manager (MANAGER)</option>
               <option value="ADMIN">Administrator (ADMIN)</option>
+            </select>
+          </div>
+
+          {/* Team Dropdown */}
+          <div>
+            <select
+              value={selectedTeamId}
+              onChange={(e) => {
+                setSelectedTeamId(e.target.value);
+                setPage(0);
+              }}
+              className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+            >
+              <option value="ALL">Team: All Teams</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id.toString()}>
+                  {t.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -517,6 +563,7 @@ export const AdminUsersPage: React.FC = () => {
                 <th className="py-3 px-4">Corporate Email</th>
                 <th className="py-3 px-4">Department</th>
                 <th className="py-3 px-4">Role</th>
+                <th className="py-3 px-4">Team</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Registered</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -525,7 +572,7 @@ export const AdminUsersPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="inline-flex items-center space-x-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading users...</span>
@@ -534,7 +581,7 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
                     <div className="max-w-xs mx-auto space-y-2">
                       <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                         <Users className="w-5 h-5" />
@@ -603,6 +650,8 @@ export const AdminUsersPage: React.FC = () => {
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             user.role === 'ADMIN'
                               ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : user.role === 'MANAGER'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}
                         >
@@ -611,10 +660,27 @@ export const AdminUsersPage: React.FC = () => {
                               <Shield className="w-2.5 h-2.5 mr-1 text-purple-600" />
                               ADMIN
                             </>
+                          ) : user.role === 'MANAGER' ? (
+                            <>
+                              <ShieldAlert className="w-2.5 h-2.5 mr-1 text-amber-600" />
+                              MANAGER
+                            </>
                           ) : (
-                            'EMPLOYEE'
+                            'MEMBER'
                           )}
                         </span>
+                      </td>
+
+                      {/* Team */}
+                      <td className="py-3 px-4">
+                        {user.teamName ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Users className="w-2.5 h-2.5 mr-1 text-indigo-500" />
+                            {user.teamName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">Unassigned</span>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -669,6 +735,17 @@ export const AdminUsersPage: React.FC = () => {
                           {/* ACTIVE ACTIONS */}
                           {isActive && !isSelf && (
                             <>
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setNewTeamId(user.teamId || '');
+                                  setTeamModalOpen(true);
+                                }}
+                                className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                                title="Assign Team"
+                              >
+                                Team
+                              </button>
                               <button
                                 onClick={() => {
                                   setSelectedUser(user);
@@ -988,8 +1065,9 @@ export const AdminUsersPage: React.FC = () => {
                 onChange={(e) => setNewRole(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
               >
-                <option value="USER">EMPLOYEE (Standard Access)</option>
-                <option value="ADMIN">ADMINISTRATOR (Full Access)</option>
+                <option value="USER">MEMBER (Individual Contributor)</option>
+                <option value="MANAGER">TEAM MANAGER (Team Approval & Review Access)</option>
+                <option value="ADMIN">ORGANIZATION ADMIN (Full Company Access)</option>
               </select>
             </div>
 
@@ -1012,6 +1090,68 @@ export const AdminUsersPage: React.FC = () => {
                 className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 {actionLoading ? 'Updating...' : 'Save Role'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN TEAM MODAL */}
+      {teamModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Assign Team Workspace</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Assign <span className="font-semibold text-slate-800">{selectedUser.name}</span> to a team in this organization.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Select Team
+              </label>
+              <select
+                value={newTeamId}
+                onChange={(e) => setNewTeamId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white"
+              >
+                <option value="">-- No Team (Unassigned) --</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.managerName ? `(Manager: ${t.managerName})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                Team members can have their submissions reviewed and approved by their designated Team Manager.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => {
+                  setTeamModalOpen(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleTeamChange}
+                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                {actionLoading ? 'Saving...' : 'Save Team Assignment'}
               </button>
             </div>
           </div>

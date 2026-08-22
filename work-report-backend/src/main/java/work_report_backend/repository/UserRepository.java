@@ -29,6 +29,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByIdAndOrganizationId(Long id, Long organizationId);
 
+    List<User> findByTeamId(Long teamId);
+
+    List<User> findByOrganizationIdAndTeamId(Long organizationId, Long teamId);
+
+    long countByTeamId(Long teamId);
+
     @Query("""
         SELECT u FROM User u
         WHERE u.organization.id = :organizationId
@@ -40,6 +46,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
           AND (:status IS NULL OR :status = '' OR u.status = :status)
           AND (:role IS NULL OR :role = '' OR u.role = :role)
           AND (:department IS NULL OR :department = '' OR LOWER(u.department) = LOWER(:department))
+          AND (:teamId IS NULL OR (u.team IS NOT NULL AND u.team.id = :teamId))
     """)
     Page<User> searchUsersByOrg(
             @Param("organizationId") Long organizationId,
@@ -47,6 +54,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("status") String status,
             @Param("role") String role,
             @Param("department") String department,
+            @Param("teamId") Long teamId,
             Pageable pageable
     );
 

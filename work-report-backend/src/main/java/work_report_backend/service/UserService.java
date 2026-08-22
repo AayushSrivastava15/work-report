@@ -15,11 +15,13 @@ import work_report_backend.dto.PageResponse;
 import work_report_backend.dto.UserRequest;
 import work_report_backend.dto.UserResponse;
 import work_report_backend.entity.Organization;
+import work_report_backend.entity.Team;
 import work_report_backend.entity.User;
 import work_report_backend.exception.DuplicateResourceException;
 import work_report_backend.exception.InvalidCredentialsException;
 import work_report_backend.exception.ResourceNotFoundException;
 import work_report_backend.repository.OrganizationRepository;
+import work_report_backend.repository.TeamRepository;
 import work_report_backend.repository.UserRepository;
 import work_report_backend.util.SecurityUtils;
 
@@ -33,26 +35,32 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
+    private final TeamRepository teamRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final LoginAttemptService loginAttemptService;
     private final SecurityAuditService securityAuditService;
+    private final RbacService rbacService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public UserService(
             UserRepository userRepository,
             OrganizationRepository organizationRepository,
+            TeamRepository teamRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             LoginAttemptService loginAttemptService,
-            SecurityAuditService securityAuditService
+            SecurityAuditService securityAuditService,
+            RbacService rbacService
     ) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+        this.teamRepository = teamRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.loginAttemptService = loginAttemptService;
         this.securityAuditService = securityAuditService;
+        this.rbacService = rbacService;
     }
 
     // Authenticate / Login User and Generate JWT with Brute Force Protection
@@ -130,12 +138,12 @@ public class UserService {
 
         String mode = request.getRegistrationMode() != null ? request.getRegistrationMode().trim().toUpperCase() : "";
         if (mode.isBlank()) {
-            if (request.getCompanyName() != null && !request.getCompanyName().isBlank()) {
+            if ("INDIVIDUAL".equalsIgnoreCase(request.getAccountType()) || "SOLO".equalsIgnoreCase(request.getAccountType())) {
+                mode = "INDIVIDUAL";
+            } else if ("JOIN_TEAM".equalsIgnoreCase(request.getAccountType()) || "TEAM".equalsIgnoreCase(request.getAccountType()) || (request.getOrganizationCode() != null && !request.getOrganizationCode().isBlank())) {
+                mode = "JOIN_TEAM";
+            } else if (request.getCompanyName() != null && !request.getCompanyName().isBlank()) {
                 mode = "CREATE_COMPANY";
-            } else if (request.getOrganizationCode() != null && !request.getOrganizationCode().isBlank()) {
-                mode = "JOIN_TEAM";
-            } else if ("TEAM".equalsIgnoreCase(request.getAccountType())) {
-                mode = "JOIN_TEAM";
             } else {
                 mode = "INDIVIDUAL";
             }
@@ -278,6 +286,7 @@ public class UserService {
             String status,
             String role,
             String department,
+            Long teamId,
             int page,
             int size
     ) {
@@ -297,6 +306,7 @@ public class UserService {
                     status != null && !status.isBlank() ? status.trim().toUpperCase() : null,
                     role != null && !role.isBlank() ? role.trim().toUpperCase() : null,
                     department != null && !department.isBlank() ? department.trim() : null,
+                    teamId,
                     pageable
             );
         } else {
@@ -401,19 +411,26 @@ public class UserService {
         return convertToResponse(saved);
     }
 
-    // Admin Action: Update User Role (Enforces Tenant Isolation)
+    // Admin Action: Update User Role (Enforces Tenant Isolation & Role Constraints)
     public UserResponse updateUserRole(Long id, String newRole) {
         String actorEmail = SecurityUtils.getCurrentUserEmail().orElse("admin");
         return updateUserRole(id, newRole, actorEmail);
     }
 
     public UserResponse updateUserRole(Long id, String newRole, String actorEmail) {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        SecurityUtils.requireAdminRole(userRepository);
+
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
         validateTenantAction(user);
 
         String sanitizedRole = newRole != null ? newRole.trim().toUpperCase() : "USER";
+        if (!List.of("ADMIN", "MANAGER", "USER").contains(sanitizedRole)) {
+            sanitizedRole = "USER";
+        }
+
         user.setRole(sanitizedRole);
         User saved = userRepository.save(user);
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
@@ -430,12 +447,12 @@ public class UserService {
 
         if (caller.getOrganization() != null && targetUser.getOrganization() != null) {
             if (!caller.getOrganization().getId().equals(targetUser.getOrganization().getId())) {
-                throw new AccessDeniedException("Access denied: You cannot perform admin actions on users in another organization.");
+                throw new AccessDeniedException("Access denied: You cannot perform actions on users in another organization.");
             }
         }
     }
 
-    // Update User Profile
+    // Update User Profile & Team Assignment
     public UserResponse updateUser(Long id, UserRequest request) {
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -462,6 +479,20 @@ public class UserService {
             existingUser.setEmployeeId(request.getEmployeeId().trim());
         }
 
+        // Handle Team Assignment if provided
+        if (request.getTeamId() != null) {
+            Long orgId = existingUser.getOrganization() != null ? existingUser.getOrganization().getId() : null;
+            if (orgId != null) {
+                if (request.getTeamId() == 0L || request.getTeamId() == -1L) {
+                    existingUser.setTeam(null);
+                } else {
+                    Team team = teamRepository.findByIdAndOrganizationId(request.getTeamId(), orgId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Team not found with id: " + request.getTeamId()));
+                    existingUser.setTeam(team);
+                }
+            }
+        }
+
         User updatedUser = userRepository.save(existingUser);
         return convertToResponse(updatedUser);
     }
@@ -474,14 +505,26 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    // Convert Entity -> Response DTO (Includes Organization Metadata)
+    // Get Effective Permissions for Authenticated User
+    public work_report_backend.dto.EffectivePermissionsResponse getCurrentUserEffectivePermissions() {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        if (caller == null) {
+            throw new AccessDeniedException("Unauthorized: No authenticated user found.");
+        }
+        return rbacService.buildEffectivePermissions(caller);
+    }
+
+    // Convert Entity -> Response DTO (Includes Organization and Team Metadata)
     public UserResponse convertToResponse(User user) {
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         String orgName = user.getOrganization() != null ? user.getOrganization().getName() : null;
         String orgCode = user.getOrganization() != null ? user.getOrganization().getCode() : null;
         String orgType = user.getOrganization() != null ? user.getOrganization().getType() : null;
 
-        return new UserResponse(
+        Long teamId = user.getTeam() != null ? user.getTeam().getId() : null;
+        String teamName = user.getTeam() != null ? user.getTeam().getName() : null;
+
+        UserResponse res = new UserResponse(
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
@@ -499,5 +542,9 @@ public class UserService {
                 orgCode,
                 orgType
         );
+        res.setTeamId(teamId);
+        res.setTeamName(teamName);
+        res.setManager("MANAGER".equalsIgnoreCase(user.getRole()));
+        return res;
     }
 }

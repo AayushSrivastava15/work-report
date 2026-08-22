@@ -23,6 +23,11 @@ public class UserResponse {
     private String organizationCode;
     private String organizationType;
 
+    // Team Info & Role Info
+    private Long teamId;
+    private String teamName;
+    private boolean isManager;
+
     public UserResponse() {
     }
 
@@ -225,5 +230,29 @@ public class UserResponse {
 
     public void setOrganizationType(String organizationType) {
         this.organizationType = organizationType;
+    }
+
+    public Long getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(Long teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
+    }
+
+    public boolean isManager() {
+        return isManager;
+    }
+
+    public void setManager(boolean manager) {
+        isManager = manager;
     }
 }

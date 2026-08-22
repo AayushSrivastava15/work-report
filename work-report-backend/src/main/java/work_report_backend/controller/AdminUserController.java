@@ -30,12 +30,13 @@ public class AdminUserController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String department,
+            @RequestParam(required = false) Long teamId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         SecurityUtils.requireAdminRole(userRepository);
         return ResponseEntity.ok(
-                userService.searchUsersPaginated(keyword, status, role, department, page, size)
+                userService.searchUsersPaginated(keyword, status, role, department, teamId, page, size)
         );
     }
 

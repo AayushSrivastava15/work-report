@@ -46,6 +46,10 @@ public class User {
     @JoinColumn(name = "organization_id")
     private Organization organization;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -193,5 +197,13 @@ public class User {
 
     public void setOrganization(Organization organization) {
         this.organization = organization;
+    }
+
+    public Team getTeam() {
+        return team;
+    }
+
+    public void setTeam(Team team) {
+        this.team = team;
     }
 }

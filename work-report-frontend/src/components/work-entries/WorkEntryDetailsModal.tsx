@@ -23,6 +23,8 @@ interface WorkEntryDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  isManager?: boolean;
+  isIndividual?: boolean;
   currentUserId?: number;
   onEdit?: (entry: WorkEntryResponse) => void;
   onDelete?: (entry: WorkEntryResponse) => void;
@@ -37,6 +39,9 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
   isOpen,
   onClose,
   isAdmin = false,
+  isManager = false,
+  isIndividual = false,
+  currentUserId,
   onEdit,
   onDelete,
   onSubmit,
@@ -55,7 +60,7 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
         return (
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-            Approved
+            {isIndividual ? 'Completed' : 'Approved'}
           </span>
         );
       case 'PENDING':
@@ -64,7 +69,7 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
         return (
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
             <Clock className="w-3.5 h-3.5 mr-1" />
-            Pending Review
+            {isIndividual ? 'In Progress' : 'Pending Review'}
           </span>
         );
       case 'REJECTED':
@@ -203,8 +208,39 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
         {/* Action Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Draft Actions */}
-            {isDraft && onSubmit && (
+            {/* Solo / Individual Workspace Direct Completion */}
+            {isIndividual && (isDraft || isPending) && (onApprove || onSubmit) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onApprove) onApprove(entry);
+                  else if (onSubmit) onSubmit(entry);
+                }}
+                className="inline-flex items-center px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5 mr-1.5" />
+                Mark as Completed
+              </button>
+            )}
+
+            {/* Solo Workspace Reopen / Withdraw */}
+            {isIndividual && (isPending || isApproved) && onWithdraw && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onWithdraw(entry);
+                }}
+                className="inline-flex items-center px-3.5 py-2 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Reopen as Draft
+              </button>
+            )}
+
+            {/* Company Draft Actions */}
+            {!isIndividual && isDraft && onSubmit && (
               <button
                 type="button"
                 onClick={() => {
@@ -218,8 +254,8 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
               </button>
             )}
 
-            {/* Pending Actions */}
-            {isPending && onWithdraw && !isAdmin && (
+            {/* Company Pending Actions */}
+            {!isIndividual && isPending && onWithdraw && !isAdmin && (
               <button
                 type="button"
                 onClick={() => {
@@ -233,8 +269,8 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
               </button>
             )}
 
-            {/* Admin Review Actions */}
-            {isPending && isAdmin && onApprove && (
+            {/* Company Review Actions (Admin & Manager with Anti-Self-Approval) */}
+            {!isIndividual && isPending && (isAdmin || isManager) && entry.userId !== currentUserId && onApprove && (
               <button
                 type="button"
                 onClick={() => {
@@ -248,7 +284,7 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
               </button>
             )}
 
-            {isPending && isAdmin && onReject && (
+            {!isIndividual && isPending && (isAdmin || isManager) && entry.userId !== currentUserId && onReject && (
               <button
                 type="button"
                 onClick={() => {
@@ -262,8 +298,8 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
               </button>
             )}
 
-            {/* Edit (allowed for Draft, Rejected, or Admin) */}
-            {(isDraft || isRejected || isAdmin) && onEdit && (
+            {/* Edit (allowed for Draft, Rejected, Admin, or Solo user) */}
+            {(isDraft || isRejected || isAdmin || isIndividual) && onEdit && (
               <button
                 type="button"
                 onClick={() => {
@@ -277,8 +313,8 @@ export const WorkEntryDetailsModal: React.FC<WorkEntryDetailsModalProps> = ({
               </button>
             )}
 
-            {/* Delete (allowed for Draft or Admin) */}
-            {(isDraft || isAdmin) && !isApproved && onDelete && (
+            {/* Delete (allowed for Draft, Admin, or Solo user) */}
+            {(isDraft || isAdmin || isIndividual) && onDelete && (
               <button
                 type="button"
                 onClick={() => {

@@ -10,7 +10,9 @@ import { WorkEntriesPage } from './pages/WorkEntriesPage';
 import { ReportsPage } from './pages/ReportsPage';
 
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminTeamsPage } from './pages/AdminTeamsPage';
 import { AdminRoute } from './auth/AdminRoute';
+import { ManagerOrAdminRoute } from './auth/ManagerOrAdminRoute';
 import { RegisterPage } from './pages/RegisterPage';
 import { RootRoute } from './auth/RootRoute';
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute';
@@ -50,6 +52,11 @@ export const App: React.FC = () => {
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/work-entries" element={<WorkEntriesPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+
+                {/* Team & Admin Protected Routes */}
+                <Route element={<ManagerOrAdminRoute />}>
+                  <Route path="/admin/teams" element={<AdminTeamsPage />} />
+                </Route>
 
                 {/* Admin-Only Protected Routes */}
                 <Route element={<AdminRoute />}>

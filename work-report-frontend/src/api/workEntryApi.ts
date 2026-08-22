@@ -169,4 +169,16 @@ export const workEntryApi = {
       body: JSON.stringify(data),
     });
   },
+
+  getWorkEntriesByTeam: (
+    teamId: number,
+    status?: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    const statusParam = status ? `&status=${encodeURIComponent(status)}` : '';
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/team/${teamId}?page=${page}&size=${size}${statusParam}`
+    );
+  },
 };

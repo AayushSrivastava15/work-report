@@ -16,6 +16,13 @@ public class WorkEntryResponse {
     private Long projectId;
     private String projectName;
 
+    private Long userId;
+    private String userName;
+    private String userEmail;
+
+    private Long teamId;
+    private String teamName;
+
     private LocalDateTime submittedAt;
     private Long reviewerId;
     private String reviewerName;
@@ -155,6 +162,46 @@ public class WorkEntryResponse {
 
     public void setProjectName(String projectName) {
         this.projectName = projectName;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
+
+    public Long getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(Long teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 
     public LocalDateTime getSubmittedAt() {

@@ -6,6 +6,7 @@ export interface AdminUserQueryParams {
   status?: string;
   role?: string;
   department?: string;
+  teamId?: number;
   page?: number;
   size?: number;
 }
@@ -17,6 +18,7 @@ export const adminApi = {
     if (params.status && params.status !== 'ALL') query.append('status', params.status);
     if (params.role && params.role !== 'ALL') query.append('role', params.role);
     if (params.department && params.department !== 'ALL') query.append('department', params.department);
+    if (params.teamId !== undefined && params.teamId !== null) query.append('teamId', params.teamId.toString());
     if (params.page !== undefined) query.append('page', params.page.toString());
     if (params.size !== undefined) query.append('size', params.size.toString());
 
@@ -61,6 +63,13 @@ export const adminApi = {
     return request<UserResponse>(`/admin/users/${id}/role`, {
       method: 'PUT',
       body: JSON.stringify({ role }),
+    });
+  },
+
+  updateUser: (id: number, data: any): Promise<UserResponse> => {
+    return request<UserResponse>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
 };

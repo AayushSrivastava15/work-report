@@ -9,8 +9,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'ADMIN';
+  const { isAdmin, isManager } = useAuth();
 
   const navItems = [
     {
@@ -37,9 +36,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const adminItems = [
     {
+      label: 'Team Management',
+      path: '/admin/teams',
+      icon: <Users className="w-5 h-5" />,
+    },
+    {
       label: 'User Management',
       path: '/admin/users',
-      icon: <Users className="w-5 h-5" />,
+      icon: <Shield className="w-5 h-5" />,
     },
   ];
 
@@ -103,15 +107,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Admin Navigation Section */}
-          {isAdmin && (
+          {/* Admin & Manager Navigation Section */}
+          {(isAdmin || isManager) && (
             <div className="pt-2 border-t border-slate-100">
               <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider px-3 mb-2 flex items-center space-x-1.5">
                 <Shield className="w-3.5 h-3.5" />
-                <span>Administration</span>
+                <span>{isAdmin ? 'Administration' : 'Team Workspace'}</span>
               </div>
               <div className="space-y-1">
-                {adminItems.map((item) => (
+                {(isAdmin ? adminItems : adminItems.filter(i => i.path === '/admin/teams')).map((item) => (
                   <NavLink
                     key={item.path}
                     to={item.path}

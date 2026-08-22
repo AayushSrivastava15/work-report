@@ -34,4 +34,14 @@ public class AuthController {
         UserResponse created = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/me")
+    public ResponseEntity<work_report_backend.dto.EffectivePermissionsResponse> getCurrentUser() {
+        return ResponseEntity.ok(userService.getCurrentUserEffectivePermissions());
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/permissions")
+    public ResponseEntity<work_report_backend.dto.EffectivePermissionsResponse> getPermissions() {
+        return ResponseEntity.ok(userService.getCurrentUserEffectivePermissions());
+    }
 }

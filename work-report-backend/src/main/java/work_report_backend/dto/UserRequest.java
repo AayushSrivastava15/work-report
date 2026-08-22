@@ -34,6 +34,8 @@ public class UserRequest {
 
     private String registrationMode; // CREATE_COMPANY, JOIN_TEAM, INDIVIDUAL
 
+    private Long teamId;
+
     public UserRequest() {
     }
 
@@ -145,5 +147,13 @@ public class UserRequest {
 
     public void setRegistrationMode(String registrationMode) {
         this.registrationMode = registrationMode;
+    }
+
+    public Long getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(Long teamId) {
+        this.teamId = teamId;
     }
 }

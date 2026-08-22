@@ -56,16 +56,34 @@ public class UserPasswordMigrationRunner implements CommandLineRunner {
                 )
             """);
 
+            // Create teams table
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS teams (
+                    id BIGSERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    organization_id BIGINT NOT NULL,
+                    manager_id BIGINT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """);
+
             // Add organization_id to users, projects, work_entries
             jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id BIGINT");
             jdbcTemplate.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id BIGINT");
             jdbcTemplate.execute("ALTER TABLE work_entries ADD COLUMN IF NOT EXISTS organization_id BIGINT");
+
+            // Add team_id to users
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS team_id BIGINT");
 
             // Create performance & isolation indexes
             jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id)");
             jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id)");
             jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_work_entries_org ON work_entries(organization_id)");
             jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_organizations_code ON organizations(code)");
+            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(organization_id)");
+            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_teams_manager ON teams(manager_id)");
+            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_users_team ON users(team_id)");
 
             // Ensure other lifecycle columns exist
             jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(255) DEFAULT 'USER'");
