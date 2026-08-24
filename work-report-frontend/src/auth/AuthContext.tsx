@@ -13,6 +13,7 @@ export interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<LoginResponse>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  updateCurrentUser: (updatedUser: Partial<UserResponse>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -9,9 +9,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import work_report_backend.dto.AdminUserStatsResponse;
+import work_report_backend.dto.ChangePasswordRequest;
 import work_report_backend.dto.LoginRequest;
 import work_report_backend.dto.LoginResponse;
 import work_report_backend.dto.PageResponse;
+import work_report_backend.dto.UserProfileUpdateRequest;
 import work_report_backend.dto.UserRequest;
 import work_report_backend.dto.UserResponse;
 import work_report_backend.entity.Organization;
@@ -514,6 +516,54 @@ public class UserService {
         return rbacService.buildEffectivePermissions(caller);
     }
 
+    @Transactional
+    public UserResponse updateProfile(Long userId, UserProfileUpdateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            user.setName(request.getName().trim());
+        }
+        if (request.getDepartment() != null) {
+            user.setDepartment(request.getDepartment().trim());
+        }
+        if (request.getDesignation() != null) {
+            user.setDesignation(request.getDesignation().trim());
+        }
+        if (request.getBio() != null) {
+            user.setBio(request.getBio().trim());
+        }
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl().trim());
+        }
+
+        User updated = userRepository.save(user);
+        return convertToResponse(updated);
+    }
+
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        // Validate current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Current password is incorrect");
+        }
+
+        // Validate new password matching
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("New password and confirm password do not match");
+        }
+
+        if (request.getNewPassword().length() < 6) {
+            throw new IllegalArgumentException("New password must be at least 6 characters long");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
     // Convert Entity -> Response DTO (Includes Organization and Team Metadata)
     public UserResponse convertToResponse(User user) {
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
@@ -545,6 +595,8 @@ public class UserService {
         res.setTeamId(teamId);
         res.setTeamName(teamName);
         res.setManager("MANAGER".equalsIgnoreCase(user.getRole()));
+        res.setBio(user.getBio());
+        res.setAvatarUrl(user.getAvatarUrl());
         return res;
     }
 }

@@ -265,6 +265,48 @@ public class WorkEntryController {
         return ResponseEntity.ok(workEntryService.filterByStatus(status, page, size));
     }
 
+    // 19b. Filter by user + status
+    @GetMapping("/filter/user/{userId}/status/{status}")
+    public ResponseEntity<PageResponse<WorkEntryResponse>> filterByUserAndStatus(
+            @PathVariable Long userId,
+            @PathVariable String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        if (userRepository != null) {
+            SecurityUtils.validateUserAccess(userId, userRepository);
+        }
+        return ResponseEntity.ok(workEntryService.filterByUserAndStatus(userId, status, page, size));
+    }
+
+    // 19c. Filter by user + category
+    @GetMapping("/filter/user/{userId}/category/{category}")
+    public ResponseEntity<PageResponse<WorkEntryResponse>> filterByUserAndCategory(
+            @PathVariable Long userId,
+            @PathVariable String category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        if (userRepository != null) {
+            SecurityUtils.validateUserAccess(userId, userRepository);
+        }
+        return ResponseEntity.ok(workEntryService.filterByUserAndCategory(userId, category, page, size));
+    }
+
+    // 19d. Filter by user + technology
+    @GetMapping("/filter/user/{userId}/technology/{technology}")
+    public ResponseEntity<PageResponse<WorkEntryResponse>> filterByUserAndTechnology(
+            @PathVariable Long userId,
+            @PathVariable String technology,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        if (userRepository != null) {
+            SecurityUtils.validateUserAccess(userId, userRepository);
+        }
+        return ResponseEntity.ok(workEntryService.filterByUserAndTechnology(userId, technology, page, size));
+    }
+
     // 20. Keyword search
     @GetMapping("/search")
     public ResponseEntity<PageResponse<WorkEntryResponse>> searchByKeyword(
@@ -273,5 +315,19 @@ public class WorkEntryController {
             @RequestParam(defaultValue = "10") int size
     ) {
         return ResponseEntity.ok(workEntryService.searchByKeyword(keyword, page, size));
+    }
+
+    // 20b. Keyword search for specific user
+    @GetMapping("/search/user/{userId}")
+    public ResponseEntity<PageResponse<WorkEntryResponse>> searchByKeywordForUser(
+            @PathVariable Long userId,
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        if (userRepository != null) {
+            SecurityUtils.validateUserAccess(userId, userRepository);
+        }
+        return ResponseEntity.ok(workEntryService.searchByKeywordForUser(userId, keyword, page, size));
     }
 }

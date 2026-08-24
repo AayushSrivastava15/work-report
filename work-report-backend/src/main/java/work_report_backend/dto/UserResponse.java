@@ -11,6 +11,8 @@ public class UserResponse {
     private String status;
     private String department;
     private String designation;
+    private String bio;
+    private String avatarUrl;
     private String employeeId;
     private String rejectionReason;
     private LocalDateTime approvedAt;
@@ -254,5 +256,21 @@ public class UserResponse {
 
     public void setManager(boolean manager) {
         isManager = manager;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

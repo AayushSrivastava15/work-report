@@ -123,6 +123,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   }, [effectivePermissions, currentUser]);
 
+  const updateCurrentUser = useCallback((updated: Partial<UserResponse>) => {
+    setCurrentUser((prev) => {
+      if (!prev) return null;
+      const merged = { ...prev, ...updated };
+      try {
+        sessionStorage.setItem(SESSION_STORAGE_USER_KEY, JSON.stringify(merged));
+      } catch {
+        // Ignored
+      }
+      return merged;
+    });
+  }, []);
+
   const role = currentUser?.role?.toUpperCase();
   const isAdmin = role === 'ADMIN';
   const isManager = role === 'MANAGER' || (effectivePermissions?.isManager ?? false);
@@ -139,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     refreshProfile,
+    updateCurrentUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

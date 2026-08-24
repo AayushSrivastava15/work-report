@@ -11,8 +11,8 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   className = 'py-12',
 }) => {
   return (
-    <div className={`flex flex-col items-center justify-center text-slate-500 ${className}`}>
-      <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
+    <div className={`flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 ${className}`}>
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-3" />
       <p className="text-sm font-medium">{message}</p>
     </div>
   );

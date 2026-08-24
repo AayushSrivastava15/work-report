@@ -62,4 +62,8 @@ public class SecurityAuditService {
     public void logAccessDenied(String resource, String actorEmail, String reason) {
         auditLog.warn("EVENT=ACCESS_DENIED resource='{}' actor='{}' reason='{}'", resource, actorEmail, reason);
     }
+
+    public void logConfigChange(String property, String details, String actorEmail) {
+        auditLog.info("EVENT=CONFIG_CHANGE property='{}' details='{}' actor='{}'", property, details, actorEmail);
+    }
 }

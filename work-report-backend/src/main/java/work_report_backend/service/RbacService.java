@@ -100,16 +100,22 @@ public class RbacService {
             return false;
         }
 
-        // Rule 0: Solo / Individual Workspace Exemption
-        // In an INDIVIDUAL workspace, the user is the sole owner and manages their own report lifecycle.
+        // Rule 0: Solo / Individual Workspace & Organization Admin Exemption
+        // In an INDIVIDUAL workspace or for an Organization ADMIN (top hierarchy with no superior), self-approval is permitted.
         boolean isIndividualWorkspace = entry.getOrganization() != null &&
                 "INDIVIDUAL".equalsIgnoreCase(entry.getOrganization().getType());
+        String role = reviewer.getRole() != null ? reviewer.getRole().toUpperCase() : "USER";
+
+        if ("ADMIN".equals(role)) {
+            return reviewer.getOrganization() != null && entry.getOrganization() != null &&
+                    reviewer.getOrganization().getId().equals(entry.getOrganization().getId());
+        }
 
         if (isIndividualWorkspace && reviewer.getId().equals(entry.getUser().getId())) {
             return true;
         }
 
-        // Rule 1: Self-approval is strictly forbidden in Corporate / Team organizations
+        // Rule 1: Self-approval is strictly forbidden for regular Team Members and Managers
         if (reviewer.getId().equals(entry.getUser().getId())) {
             return false;
         }
@@ -118,13 +124,6 @@ public class RbacService {
         if (reviewer.getOrganization() == null || entry.getOrganization() == null ||
             !reviewer.getOrganization().getId().equals(entry.getOrganization().getId())) {
             return false;
-        }
-
-        String role = reviewer.getRole() != null ? reviewer.getRole().toUpperCase() : "USER";
-
-        // Rule 3: Organization Admin has authority over all entries in the organization
-        if ("ADMIN".equals(role)) {
-            return true;
         }
 
         // Rule 4: Team Manager can review if the author belongs to their managed team

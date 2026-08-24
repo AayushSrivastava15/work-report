@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, FileText, FileBarChart, Users, Shield, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { LayoutDashboard, FolderKanban, FileText, FileBarChart, Users, Shield, Settings, X } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 
 interface SidebarProps {
@@ -32,6 +33,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       path: '/reports',
       icon: <FileBarChart className="w-5 h-5" />,
     },
+    {
+      label: 'Settings',
+      path: '/settings',
+      icon: <Settings className="w-5 h-5" />,
+    },
   ];
 
   const adminItems = [
@@ -50,34 +56,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   return (
     <>
       {/* Mobile Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden"
+            onClick={onClose}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed lg:sticky top-0 lg:top-16 left-0 h-screen lg:h-[calc(100vh-4rem)] w-64 bg-white border-r border-slate-200 z-50 lg:z-20 transition-transform duration-200 ease-in-out flex flex-col ${
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed lg:sticky top-0 lg:top-16 left-0 h-screen lg:h-[calc(100vh-4rem)] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 lg:z-20 flex flex-col transition-transform duration-250 ease-out lg:translate-x-0 ${
+          isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
         {/* Mobile Header in sidebar */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 lg:hidden">
-          <span className="font-bold text-slate-800">Work Report</span>
-          <button
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 lg:hidden">
+          <span className="font-bold text-slate-800 dark:text-white">Work Report</span>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
           >
             <X className="w-5 h-5" />
-          </button>
+          </motion.button>
         </div>
 
         {/* Navigation items */}
-        <nav className="p-4 space-y-4 flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-4 flex-1 overflow-y-auto" data-lenis-prevent>
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 mb-2">
               Main Menu
             </div>
             <div className="space-y-1">
@@ -87,16 +100,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   to={item.path}
                   onClick={() => onClose()}
                   className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    `relative flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        ? 'text-blue-700 dark:text-blue-400 font-semibold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/70'
                     }`
                   }
                 >
                   {({ isActive }) => (
                     <>
-                      <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
+                      {isActive && (
+                        <motion.div
+                          layoutId="sidebarActiveBg"
+                          className="absolute inset-0 bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/60 rounded-xl shadow-2xs -z-10"
+                          transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                        />
+                      )}
+                      <span className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}>
                         {item.icon}
                       </span>
                       <span>{item.label}</span>
@@ -109,28 +129,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           {/* Admin & Manager Navigation Section */}
           {(isAdmin || isManager) && (
-            <div className="pt-2 border-t border-slate-100">
-              <div className="text-[11px] font-bold text-purple-600 uppercase tracking-wider px-3 mb-2 flex items-center space-x-1.5">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider px-3 mb-2 flex items-center space-x-1.5">
                 <Shield className="w-3.5 h-3.5" />
                 <span>{isAdmin ? 'Administration' : 'Team Workspace'}</span>
               </div>
               <div className="space-y-1">
-                {(isAdmin ? adminItems : adminItems.filter(i => i.path === '/admin/teams')).map((item) => (
+                {(isAdmin ? adminItems : adminItems.filter((i) => i.path === '/admin/teams')).map((item) => (
                   <NavLink
                     key={item.path}
                     to={item.path}
                     onClick={() => onClose()}
                     className={({ isActive }) =>
-                      `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      `relative flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                         isActive
-                          ? 'bg-purple-50 text-purple-700 font-semibold shadow-2xs border border-purple-100'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          ? 'text-purple-700 dark:text-purple-300 font-semibold'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/70'
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        <span className={isActive ? 'text-purple-600' : 'text-slate-400'}>
+                        {isActive && (
+                          <motion.div
+                            layoutId="sidebarAdminActiveBg"
+                            className="absolute inset-0 bg-purple-50 dark:bg-purple-950/50 border border-purple-100 dark:border-purple-900/60 rounded-xl shadow-2xs -z-10"
+                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                          />
+                        )}
+                        <span className={`shrink-0 ${isActive ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`}>
                           {item.icon}
                         </span>
                         <span>{item.label}</span>
@@ -144,9 +171,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </nav>
 
         {/* System info footer */}
-        <div className="p-4 border-t border-slate-100 text-xs text-slate-400">
-          <div className="font-semibold text-slate-700">Work Report Enterprise</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Secure JWT &bull; v1.0.0</div>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
+          <div className="font-semibold text-slate-700 dark:text-slate-300">Work Report Enterprise</div>
+          <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Secure JWT &bull; v1.0.0</div>
         </div>
       </aside>
     </>

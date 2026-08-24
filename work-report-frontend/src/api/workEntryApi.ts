@@ -117,6 +117,17 @@ export const workEntryApi = {
     );
   },
 
+  filterByUserAndCategory: (
+    userId: number,
+    category: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/user/${userId}/category/${encodeURIComponent(category)}?page=${page}&size=${size}`
+    );
+  },
+
   filterByTechnology: (
     technology: string,
     page = 0,
@@ -127,6 +138,17 @@ export const workEntryApi = {
     );
   },
 
+  filterByUserAndTechnology: (
+    userId: number,
+    technology: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/user/${userId}/technology/${encodeURIComponent(technology)}?page=${page}&size=${size}`
+    );
+  },
+
   filterByStatus: (
     status: string,
     page = 0,
@@ -134,6 +156,28 @@ export const workEntryApi = {
   ): Promise<PaginatedResponse<WorkEntryResponse>> => {
     return request<PaginatedResponse<WorkEntryResponse>>(
       `/work-entries/filter/status/${encodeURIComponent(status)}?page=${page}&size=${size}`
+    );
+  },
+
+  filterByUserAndStatus: (
+    userId: number,
+    status: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/filter/user/${userId}/status/${encodeURIComponent(status)}?page=${page}&size=${size}`
+    );
+  },
+
+  searchWorkEntriesByUser: (
+    userId: number,
+    keyword: string,
+    page = 0,
+    size = 10
+  ): Promise<PaginatedResponse<WorkEntryResponse>> => {
+    return request<PaginatedResponse<WorkEntryResponse>>(
+      `/work-entries/search/user/${userId}?keyword=${encodeURIComponent(keyword)}&page=${page}&size=${size}`
     );
   },
 

@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { WorkEntriesPage } from './pages/WorkEntriesPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminTeamsPage } from './pages/AdminTeamsPage';
@@ -17,60 +18,72 @@ import { RegisterPage } from './pages/RegisterPage';
 import { RootRoute } from './auth/RootRoute';
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { MotionProvider, SmoothScrollProvider } from './motion';
+import { BackToTop } from './components/common/BackToTop';
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Smart Root: Unauthenticated -> HomePage, Authenticated -> Dashboard */}
-            <Route path="/" element={<RootRoute />} />
+    <ThemeProvider>
+      <MotionProvider>
+        <SmoothScrollProvider>
+          <AuthProvider>
+            <ToastProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Smart Root: Unauthenticated -> HomePage, Authenticated -> Dashboard */}
+                <Route path="/" element={<RootRoute />} />
 
-            {/* Public Authentication Routes (Guarded: redirect to Dashboard if already logged in) */}
-            <Route
-              path="/login"
-              element={
-                <PublicOnlyRoute>
-                  <LoginPage />
-                </PublicOnlyRoute>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PublicOnlyRoute>
-                  <RegisterPage />
-                </PublicOnlyRoute>
-              }
-            />
+                {/* Public Authentication Routes (Guarded: redirect to Dashboard if already logged in) */}
+                <Route
+                  path="/login"
+                  element={
+                    <PublicOnlyRoute>
+                      <LoginPage />
+                    </PublicOnlyRoute>
+                  }
+                />
+                <Route
+                  path="/register"
+                  element={
+                    <PublicOnlyRoute>
+                      <RegisterPage />
+                    </PublicOnlyRoute>
+                  }
+                />
 
-            {/* Protected Enterprise Application Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/work-entries" element={<WorkEntriesPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
+                {/* Protected Enterprise Application Routes */}
+                <Route element={<ProtectedRoute />}>
+                  <Route element={<Layout />}>
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="/work-entries" element={<WorkEntriesPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/profile" element={<SettingsPage />} />
 
-                {/* Team & Admin Protected Routes */}
-                <Route element={<ManagerOrAdminRoute />}>
-                  <Route path="/admin/teams" element={<AdminTeamsPage />} />
+                    {/* Team & Admin Protected Routes */}
+                    <Route element={<ManagerOrAdminRoute />}>
+                      <Route path="/admin/teams" element={<AdminTeamsPage />} />
+                    </Route>
+
+                    {/* Admin-Only Protected Routes */}
+                    <Route element={<AdminRoute />}>
+                      <Route path="/admin/users" element={<AdminUsersPage />} />
+                    </Route>
+                  </Route>
                 </Route>
 
-                {/* Admin-Only Protected Routes */}
-                <Route element={<AdminRoute />}>
-                  <Route path="/admin/users" element={<AdminUsersPage />} />
-                </Route>
-              </Route>
-            </Route>
-
-            {/* Catch-all fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </ToastProvider>
-    </AuthProvider>
+                {/* Catch-all fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <BackToTop />
+            </BrowserRouter>
+          </ToastProvider>
+        </AuthProvider>
+      </SmoothScrollProvider>
+    </MotionProvider>
+  </ThemeProvider>
   );
 };
 

@@ -4,7 +4,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import work_report_backend.dto.ChangePasswordRequest;
 import work_report_backend.dto.ProjectResponse;
+import work_report_backend.dto.UserProfileUpdateRequest;
 import work_report_backend.dto.UserRequest;
 import work_report_backend.dto.UserResponse;
 import work_report_backend.dto.WorkEntryResponse;
@@ -70,6 +72,27 @@ public class UserController {
     ) {
         SecurityUtils.validateUserAccess(id, userRepository);
         return ResponseEntity.ok(userService.updateUser(id, request));
+    }
+
+    // 4.1 Update User Profile (Self)
+    @PutMapping("/{id}/profile")
+    public ResponseEntity<UserResponse> updateProfile(
+            @PathVariable Long id,
+            @Valid @RequestBody UserProfileUpdateRequest request
+    ) {
+        SecurityUtils.validateUserAccess(id, userRepository);
+        return ResponseEntity.ok(userService.updateProfile(id, request));
+    }
+
+    // 4.2 Change Password (Self)
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Void> changePassword(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        SecurityUtils.validateUserAccess(id, userRepository);
+        userService.changePassword(id, request);
+        return ResponseEntity.ok().build();
     }
 
     // 5. Delete User

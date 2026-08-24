@@ -21,6 +21,16 @@ public class DashboardController {
         this.userRepository = userRepository;
     }
 
+    // 0. High-Density Analytics Endpoint
+    @GetMapping("/user/{userId}/analytics")
+    public ResponseEntity<DashboardAnalyticsResponse> getAnalytics(
+            @PathVariable Long userId,
+            @ModelAttribute AnalyticsFilterRequest filter
+    ) {
+        SecurityUtils.validateUserAccess(userId, userRepository);
+        return ResponseEntity.ok(dashboardService.getAnalyticsData(userId, filter));
+    }
+
     // 1. Total work-entry count
     @GetMapping("/user/{userId}/work-count")
     public ResponseEntity<DashboardWorkCountResponse> getWorkCount(

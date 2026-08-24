@@ -27,8 +27,10 @@ import {
   AlertTriangle,
   FileEdit,
   Check,
-  FolderKanban
+  FolderKanban,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { accordionVariants } from '../motion';
 
 import { useAuth } from '../auth/AuthContext';
 
@@ -135,9 +137,9 @@ export const WorkEntriesPage: React.FC = () => {
           data = { content: [], page: 0, size: targetSize, totalPages: 0, totalElements: 0, first: true, last: true };
         }
       } else if (targetTab !== 'ALL') {
-        data = await workEntryApi.filterByStatus(targetTab, targetPage, targetSize);
+        data = await workEntryApi.filterByUserAndStatus(currentUserId, targetTab, targetPage, targetSize);
       } else if (targetMode === 'search' && keyword.trim()) {
-        data = await workEntryApi.searchWorkEntries(keyword.trim(), targetPage, targetSize);
+        data = await workEntryApi.searchWorkEntriesByUser(currentUserId, keyword.trim(), targetPage, targetSize);
       } else if (targetMode === 'filter') {
         if (filterStartDate && filterEndDate && filterProjectId) {
           data = await workEntryApi.filterByUserAndProjectAndDateRange(
@@ -157,9 +159,9 @@ export const WorkEntriesPage: React.FC = () => {
             targetSize
           );
         } else if (filterCategory) {
-          data = await workEntryApi.filterByCategory(filterCategory, targetPage, targetSize);
+          data = await workEntryApi.filterByUserAndCategory(currentUserId, filterCategory, targetPage, targetSize);
         } else if (filterTechnology) {
-          data = await workEntryApi.filterByTechnology(filterTechnology, targetPage, targetSize);
+          data = await workEntryApi.filterByUserAndTechnology(currentUserId, filterTechnology, targetPage, targetSize);
         } else {
           data = await workEntryApi.getWorkEntriesByUser(currentUserId, targetPage, targetSize);
         }
@@ -209,7 +211,7 @@ export const WorkEntriesPage: React.FC = () => {
       }
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, projects]);
+  }, [searchParams]);
 
   const handleTabChange = (tab: StatusTab) => {
     setActiveTab(tab);
@@ -464,15 +466,15 @@ export const WorkEntriesPage: React.FC = () => {
 
   const handleApproveConfirm = async () => {
     if (!approvingEntry) return;
-    if (approvingEntry.userId === currentUserId) {
-      showError('Anti-Self-Approval: You cannot approve your own work report.', 'Access Denied');
+    if (approvingEntry.userId === currentUserId && !isAdmin && !isIndividual) {
+      showError('Anti-Self-Approval: Team managers cannot approve their own work report.', 'Access Denied');
       setApprovingEntry(null);
       return;
     }
     try {
       setActionLoading(true);
       await workEntryApi.approve(approvingEntry.id);
-      showSuccess(`Report "${approvingEntry.title}" approved.`);
+      showSuccess(isAdmin && approvingEntry.userId === currentUserId ? `Work report "${approvingEntry.title}" approved and completed.` : `Report "${approvingEntry.title}" approved.`);
       setApprovingEntry(null);
       fetchEntries(page, size, activeTab, mode, searchKeyword, viewScope);
     } catch (err: any) {
@@ -511,7 +513,7 @@ export const WorkEntriesPage: React.FC = () => {
       case 'APPROVED':
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
             <CheckCircle2 className="w-3 h-3 mr-1" />
             {isIndividual ? 'Completed' : 'Approved'}
           </span>
@@ -520,14 +522,14 @@ export const WorkEntriesPage: React.FC = () => {
       case 'SUBMITTED':
       case 'IN PROGRESS':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
             <Clock className="w-3 h-3 mr-1" />
             {isIndividual ? 'In Progress' : 'Pending Review'}
           </span>
         );
       case 'REJECTED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
             <AlertTriangle className="w-3 h-3 mr-1" />
             Rejected
           </span>
@@ -535,7 +537,7 @@ export const WorkEntriesPage: React.FC = () => {
       case 'DRAFT':
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
             <FileEdit className="w-3 h-3 mr-1" />
             Draft
           </span>
@@ -557,52 +559,69 @@ export const WorkEntriesPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white tracking-tight">
             Work Reports & Entries
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isIndividual
               ? 'Track daily work, log deliverables, and manage your projects.'
+              : isAdmin
+              ? `Manage executive deliverables, log work entries, and review organization submissions for `
               : `Track daily tasks, submit reports for review, and inspect approval lifecycle for `}
             {!isIndividual && (
-              <span className="font-semibold text-slate-700">{currentUser?.name || 'User'}</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{currentUser?.name || 'User'}</span>
             )}
           </p>
         </div>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => handleOpenCreate()}
           className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm hover:shadow transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4 mr-1.5" />
           Create Work Report
-        </button>
+        </motion.button>
       </div>
 
-      {/* SCOPE TOGGLE (For Corporate Managers & Admins only) */}
+      {/* SCOPE TOGGLE (For Corporate Managers & Admins only) with Shared Layout Indicator */}
       {!isIndividual && (isAdmin || isManager) && (
-        <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl max-w-fit">
+        <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl max-w-fit border border-slate-200/80 dark:border-slate-700">
           <button
             onClick={() => setViewScope('MY')}
-            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              viewScope === 'MY'
-                ? 'bg-white text-blue-700 shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
+            className={`relative px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer select-none ${
+              viewScope === 'MY' ? 'text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            My Work Entries
+            {viewScope === 'MY' && (
+              <motion.div
+                layoutId="workEntriesScopeActive"
+                className="absolute inset-0 bg-white dark:bg-slate-700 rounded-lg shadow-2xs -z-10"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+              />
+            )}
+            <span>My Work Entries</span>
           </button>
           <button
             onClick={() => setViewScope('TEAM')}
-            className={`flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              viewScope === 'TEAM'
-                ? 'bg-indigo-600 text-white shadow-2xs'
-                : 'text-indigo-700 hover:bg-indigo-50'
+            className={`relative flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer select-none ${
+              viewScope === 'TEAM' ? 'text-white' : 'text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
             }`}
           >
+            {viewScope === 'TEAM' && (
+              <motion.div
+                layoutId="workEntriesScopeActive"
+                className="absolute inset-0 bg-indigo-600 rounded-lg shadow-2xs -z-10"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+              />
+            )}
             <span>Team Review Submissions</span>
             {currentUser?.teamName && (
-              <span className="px-1.5 py-0.5 bg-indigo-800 text-[10px] text-white rounded">
+              <span
+                className={`px-1.5 py-0.5 text-[10px] rounded ${
+                  viewScope === 'TEAM' ? 'bg-indigo-800 text-white' : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300'
+                }`}
+              >
                 {currentUser.teamName}
               </span>
             )}
@@ -610,210 +629,203 @@ export const WorkEntriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* STATUS LIFECYCLE TABS */}
-      <div className="flex items-center space-x-1 border-b border-slate-200 overflow-x-auto pb-px">
-        <button
-          onClick={() => handleTabChange('ALL')}
-          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'ALL'
-              ? 'bg-white text-blue-600 border-t-2 border-l border-r border-t-blue-600 border-l-slate-200 border-r-slate-200 -mb-px'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <FolderKanban className="w-3.5 h-3.5 mr-1.5" />
-          {isIndividual ? 'All Tasks & Work' : 'All Reports'}
-        </button>
-
-        <button
-          onClick={() => handleTabChange('DRAFT')}
-          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'DRAFT'
-              ? 'bg-white text-slate-900 border-t-2 border-l border-r border-t-slate-600 border-l-slate-200 border-r-slate-200 -mb-px'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <FileEdit className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-          {isIndividual ? 'Drafts' : 'My Drafts'}
-        </button>
-
-        <button
-          onClick={() => handleTabChange('PENDING')}
-          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'PENDING'
-              ? 'bg-white text-amber-700 border-t-2 border-l border-r border-t-amber-600 border-l-slate-200 border-r-slate-200 -mb-px'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-          {isIndividual ? 'In Progress' : 'Pending Review'}
-        </button>
-
-        <button
-          onClick={() => handleTabChange('APPROVED')}
-          className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'APPROVED'
-              ? 'bg-white text-emerald-700 border-t-2 border-l border-r border-t-emerald-600 border-l-slate-200 border-r-slate-200 -mb-px'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-          {isIndividual ? 'Completed' : 'Approved'}
-        </button>
-
-        {!isIndividual && (
-          <button
-            onClick={() => handleTabChange('REJECTED')}
-            className={`flex items-center px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'REJECTED'
-                ? 'bg-white text-rose-700 border-t-2 border-l border-r border-t-rose-600 border-l-slate-200 border-r-slate-200 -mb-px'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
-            Rejected Feedback
-          </button>
-        )}
+      {/* STATUS LIFECYCLE TABS with Shared Layout Underline Indicator */}
+      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
+        {[
+          { id: 'ALL', label: isIndividual ? 'All Tasks & Work' : 'All Reports', icon: <FolderKanban className="w-3.5 h-3.5 mr-1.5" /> },
+          { id: 'DRAFT', label: isIndividual ? 'Drafts' : 'My Drafts', icon: <FileEdit className="w-3.5 h-3.5 mr-1.5 text-slate-500 dark:text-slate-400" /> },
+          { id: 'PENDING', label: isIndividual ? 'In Progress' : 'Pending Review', icon: <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" /> },
+          { id: 'APPROVED', label: isIndividual ? 'Completed' : 'Approved', icon: <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> },
+          ...(!isIndividual
+            ? [{ id: 'REJECTED', label: 'Rejected Feedback', icon: <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-500" /> }]
+            : []),
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id as StatusTab)}
+              className={`relative flex items-center px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap select-none ${
+                isActive
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 rounded-t-lg'
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="workEntriesTabUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full"
+                  transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* SEARCH AND FILTER TOOLBAR */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
         {/* Search input */}
         <form onSubmit={handleSearchSubmit} className="relative w-full md:max-w-md flex items-center">
-          <Search className="w-4 h-4 absolute left-3.5 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3.5 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Search reports by keyword..."
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            className="w-full pl-10 pr-20 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500"
+            className="w-full pl-10 pr-20 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-shadow"
           />
-          <button
+          <motion.button
+            whileTap={{ scale: 0.94 }}
             type="submit"
-            className="absolute right-1.5 px-3 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+            className="absolute right-1.5 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md transition-colors cursor-pointer"
           >
             Search
-          </button>
+          </motion.button>
         </form>
 
         {/* Filter Trigger Button */}
         <div className="flex items-center space-x-2 w-full md:w-auto justify-end">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.94 }}
             onClick={() => setShowFilterDrawer(!showFilterDrawer)}
             className={`inline-flex items-center px-3.5 py-2 text-sm font-semibold rounded-lg border transition-colors cursor-pointer ${
               showFilterDrawer || hasActiveFilters
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
-            <Filter className="w-4 h-4 mr-1.5 text-slate-500" />
+            <Filter className="w-4 h-4 mr-1.5 text-slate-500 dark:text-slate-400" />
             Filters
-            {hasActiveFilters && (
-              <span className="w-2 h-2 rounded-full bg-blue-600 ml-2" />
-            )}
-          </button>
+            {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 ml-2" />}
+          </motion.button>
 
           {hasActiveFilters && (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.94 }}
               onClick={handleResetFilters}
-              className="inline-flex items-center px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               title="Reset all filters"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1" />
               Reset
-            </button>
+            </motion.button>
           )}
         </div>
       </div>
 
-      {/* Filter Drawer / Panel */}
-      {showFilterDrawer && (
-        <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Advanced Filter Options
-            </h4>
-            <button
-              onClick={() => setShowFilterDrawer(false)}
-              className="text-xs text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
+      {/* Filter Drawer / Panel with smooth accordion animation */}
+      <AnimatePresence>
+        {showFilterDrawer && (
+          <motion.div
+            variants={accordionVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-50 dark:bg-slate-800/80 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Advanced Filter Options
+                </h4>
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setShowFilterDrawer(false)}
+                  className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold cursor-pointer"
+                >
+                  Close
+                </motion.button>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Date Range Start */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Start Date</label>
-              <input
-                type="date"
-                value={filterStartDate}
-                onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Date Range Start */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Date Range End */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Project */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Project
+                  </label>
+                  <select
+                    value={filterProjectId}
+                    onChange={(e) => setFilterProjectId(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" className="dark:bg-slate-800">All Projects</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id} className="dark:bg-slate-800">
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" className="dark:bg-slate-800">All Categories</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c} className="dark:bg-slate-800">
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  onClick={handleResetFilters}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Reset
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  onClick={handleApplyFilters}
+                  className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm cursor-pointer"
+                >
+                  Apply Filters
+                </motion.button>
+              </div>
             </div>
-
-            {/* Date Range End */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">End Date</label>
-              <input
-                type="date"
-                value={filterEndDate}
-                onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </div>
-
-            {/* Project */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Project</label>
-              <select
-                value={filterProjectId}
-                onChange={(e) => setFilterProjectId(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                <option value="">All Projects</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Category</label>
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                <option value="">All Categories</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-2">
-            <button
-              onClick={handleResetFilters}
-              className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
-            >
-              Reset
-            </button>
-            <button
-              onClick={handleApplyFilters}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm cursor-pointer"
-            >
-              Apply Filters
-            </button>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Error Alert */}
       {error && (
@@ -857,25 +869,29 @@ export const WorkEntriesPage: React.FC = () => {
         />
       ) : (
         /* Table View */
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
+            <table className="w-full text-left text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="px-5 py-3.5">Date</th>
-                  <th className="px-5 py-3.5">Project</th>
-                  <th className="px-5 py-3.5">Report Title & Summary</th>
-                  <th className="px-5 py-3.5">Category</th>
-                  <th className="px-5 py-3.5">Technology</th>
-                  <th className="px-5 py-3.5">Status</th>
-                  <th className="px-5 py-3.5 text-right">Workflow Actions</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap w-28">Date</th>
+                  <th className="px-4 py-3.5 max-w-[170px] w-44">Project</th>
+                  <th className="px-4 py-3.5 min-w-[200px] max-w-sm">Report Title & Summary</th>
+                  <th className="px-4 py-3.5 max-w-[130px] w-32">Category</th>
+                  <th className="px-4 py-3.5 max-w-[160px] w-36">Technology</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap w-32 sticky right-24 bg-slate-50 dark:bg-slate-800 z-10 shadow-[-3px_0_4px_-2px_rgba(0,0,0,0.05)]">
+                    Status
+                  </th>
+                  <th className="px-4 py-3.5 whitespace-nowrap w-24 text-right sticky right-0 bg-slate-50 dark:bg-slate-800 z-10">
+                    Workflow Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {entries.map((entry) => {
                   const upperStatus = (entry.status || 'DRAFT').toUpperCase();
                   const isDraft = upperStatus === 'DRAFT';
-                  const isPending = upperStatus === 'PENDING' || upperStatus === 'SUBMITTED';
+                  const isPending = upperStatus === 'PENDING' || upperStatus === 'SUBMITTED' || upperStatus === 'IN PROGRESS';
                   const isApproved = upperStatus === 'APPROVED' || upperStatus === 'COMPLETED';
                   const isRejected = upperStatus === 'REJECTED';
 
@@ -883,60 +899,60 @@ export const WorkEntriesPage: React.FC = () => {
                     <tr
                       key={entry.id}
                       onClick={() => setSelectedEntryForDetails(entry)}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                      className="hover:bg-blue-50/40 dark:hover:bg-blue-950/40 transition-colors cursor-pointer group"
                     >
                       {/* Date */}
-                      <td className="px-5 py-4 whitespace-nowrap font-semibold text-slate-800">
+                      <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-800 dark:text-slate-200">
                         <div className="flex items-center space-x-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                           <span>{entry.date}</span>
                         </div>
                       </td>
 
                       {/* Project */}
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="font-semibold text-blue-600">
+                      <td className="px-4 py-3.5 max-w-[170px] truncate" title={entry.projectName || `Project #${entry.projectId}`}>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400 truncate block">
                           {entry.projectName || `Project #${entry.projectId}`}
                         </span>
                       </td>
 
                       {/* Title & Description */}
-                      <td className="px-5 py-4 max-w-sm">
-                        <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                      <td className="px-4 py-3.5 min-w-[200px] max-w-sm">
+                        <div className="font-bold text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" title={entry.title}>
                           {entry.title}
                         </div>
-                        <div className="text-xs text-slate-500 line-clamp-2 mt-0.5">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5" title={entry.description}>
                           {entry.description}
                         </div>
                         {isRejected && entry.rejectionReason && (
-                          <div className="mt-1.5 text-xs text-rose-700 bg-rose-50 p-1.5 rounded border border-rose-200">
+                          <div className="mt-1 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800 truncate">
                             <strong>Feedback:</strong> {entry.rejectionReason}
                           </div>
                         )}
                       </td>
 
                       {/* Category */}
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          {entry.category}
+                      <td className="px-4 py-3.5 max-w-[130px] truncate">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 truncate max-w-full" title={entry.category}>
+                          <span className="truncate">{entry.category}</span>
                         </span>
                       </td>
 
                       {/* Technology */}
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-xs font-mono bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-700">
+                      <td className="px-4 py-3.5 max-w-[160px] truncate">
+                        <span className="text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300 truncate inline-block max-w-full" title={entry.technology}>
                           {entry.technology || 'N/A'}
                         </span>
                       </td>
 
                       {/* Status */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3.5 whitespace-nowrap sticky right-24 bg-white dark:bg-slate-900 group-hover:bg-blue-50/60 dark:group-hover:bg-blue-950/60 z-10 shadow-[-3px_0_4px_-2px_rgba(0,0,0,0.05)] transition-colors">
                         {getStatusBadge(entry.status)}
                       </td>
 
                       {/* Actions */}
                       <td
-                        className="px-5 py-4 whitespace-nowrap text-right space-x-1"
+                        className="px-4 py-3.5 whitespace-nowrap text-right space-x-1 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-blue-50/60 dark:group-hover:bg-blue-950/60 z-10 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* SOLO FREELANCER ACTIONS */}
@@ -946,10 +962,10 @@ export const WorkEntriesPage: React.FC = () => {
                             {(isDraft || isPending) && (
                               <button
                                 onClick={() => setApprovingEntry(entry)}
-                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-md transition-colors cursor-pointer"
                                 title="Mark as Completed"
                               >
-                                <Check className="w-4 h-4 text-emerald-600" />
+                                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                               </button>
                             )}
 
@@ -957,17 +973,17 @@ export const WorkEntriesPage: React.FC = () => {
                             {(isPending || isApproved) && (
                               <button
                                 onClick={() => setWithdrawingEntry(entry)}
-                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-md transition-colors cursor-pointer"
                                 title="Reopen as Draft"
                               >
-                                <RotateCcw className="w-4 h-4 text-amber-600" />
+                                <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                               </button>
                             )}
 
                             {/* Edit Entry */}
                             <button
                               onClick={() => handleOpenEdit(entry)}
-                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md transition-colors cursor-pointer"
                               title="Edit Entry"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -976,7 +992,7 @@ export const WorkEntriesPage: React.FC = () => {
                             {/* Delete Entry */}
                             <button
                               onClick={() => setDeletingEntry(entry)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-md transition-colors cursor-pointer"
                               title="Delete Entry"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -987,57 +1003,59 @@ export const WorkEntriesPage: React.FC = () => {
                         {/* CORPORATE / COMPANY WORKFLOW ACTIONS */}
                         {!isIndividual && (
                           <>
-                            {/* Draft: Submit */}
+                            {/* Draft: Submit / Publish */}
                             {isDraft && (
                               <button
                                 onClick={() => setSubmittingEntry(entry)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                                title="Submit for Review"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md transition-colors cursor-pointer"
+                                title={isAdmin ? "Publish & Approve Report" : "Submit for Review"}
                               >
-                                <Send className="w-4 h-4 text-blue-600" />
+                                {isAdmin ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Send className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
                               </button>
                             )}
 
-                            {/* Pending: Withdraw (Allowed for entry author) */}
+                            {/* Pending: Withdraw (Allowed for entry author when not admin or when wanting to revert) */}
                             {isPending && entry.userId === currentUserId && (
                               <button
                                 onClick={() => setWithdrawingEntry(entry)}
-                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-md transition-colors cursor-pointer"
                                 title="Withdraw to Draft"
                               >
-                                <RotateCcw className="w-4 h-4 text-amber-600" />
+                                <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                               </button>
                             )}
 
                             {/* Pending: Admin & Manager Approve / Reject */}
                             {isPending && (isAdmin || isManager) && (
                               <>
-                                {entry.userId === currentUserId ? (
+                                {entry.userId === currentUserId && !isAdmin ? (
                                   <span
-                                    title="Anti-Self-Approval: You cannot approve your own work report."
-                                    className="inline-block p-1.5 text-slate-300 cursor-not-allowed"
+                                    title="Anti-Self-Approval: Team managers cannot approve their own work report."
+                                    className="inline-block p-1.5 text-slate-300 dark:text-slate-600 cursor-not-allowed"
                                   >
-                                    <Check className="w-4 h-4 text-slate-300" />
+                                    <Check className="w-4 h-4 text-slate-300 dark:text-slate-600" />
                                   </span>
                                 ) : (
                                   <>
                                     <button
                                       onClick={() => setApprovingEntry(entry)}
-                                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                                      title="Approve Report"
+                                      className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-md transition-colors cursor-pointer"
+                                      title={isAdmin && entry.userId === currentUserId ? "Approve & Mark Completed" : "Approve Report"}
                                     >
-                                      <Check className="w-4 h-4 text-emerald-600" />
+                                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                     </button>
-                                    <button
-                                      onClick={() => {
-                                        setRejectingEntry(entry);
-                                        setRejectionReasonInput('');
-                                      }}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                                      title="Reject Report"
-                                    >
-                                      <X className="w-4 h-4 text-rose-600" />
-                                    </button>
+                                    {entry.userId !== currentUserId && (
+                                      <button
+                                        onClick={() => {
+                                          setRejectingEntry(entry);
+                                          setRejectionReasonInput('');
+                                        }}
+                                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors cursor-pointer"
+                                        title="Reject Report"
+                                      >
+                                        <X className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </>
@@ -1047,7 +1065,7 @@ export const WorkEntriesPage: React.FC = () => {
                             {(isDraft || isRejected || isAdmin) && (
                               <button
                                 onClick={() => handleOpenEdit(entry)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md transition-colors cursor-pointer"
                                 title={isRejected ? 'Edit & Resubmit' : 'Edit Entry'}
                               >
                                 <Edit2 className="w-4 h-4" />
@@ -1058,7 +1076,7 @@ export const WorkEntriesPage: React.FC = () => {
                             {(isDraft || isAdmin) && !isApproved && (
                               <button
                                 onClick={() => setDeletingEntry(entry)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-md transition-colors cursor-pointer"
                                 title="Delete Entry"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1069,7 +1087,7 @@ export const WorkEntriesPage: React.FC = () => {
 
                         <button
                           onClick={() => setSelectedEntryForDetails(entry)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
                           title="View Details"
                         >
                           <Eye className="w-4 h-4" />
@@ -1084,7 +1102,7 @@ export const WorkEntriesPage: React.FC = () => {
 
           {/* Pagination Controls */}
           {!loading && !error && entries.length > 0 && (
-            <div className="border-t border-slate-100 px-4">
+            <div className="border-t border-slate-100 dark:border-slate-800 px-4">
               <Pagination
                 page={page}
                 size={size}
@@ -1103,7 +1121,7 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal isOpen={isCreateOpen} onClose={handleCloseCreate} title="Create Work Report">
         <div className="space-y-4">
           {formErrors.form && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
               {formErrors.form}
             </div>
           )}
@@ -1111,7 +1129,7 @@ export const WorkEntriesPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Date */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Report Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -1119,27 +1137,27 @@ export const WorkEntriesPage: React.FC = () => {
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                  formErrors.date ? 'border-red-400' : 'border-slate-300'
-                } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                  formErrors.date ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+                } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
               />
               {formErrors.date && <p className="text-xs text-red-500 mt-1">{formErrors.date}</p>}
             </div>
 
             {/* Project Selection */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Project Assignment <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(Number(e.target.value))}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                  formErrors.projectId ? 'border-red-400' : 'border-slate-300'
-                } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                  formErrors.projectId ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+                } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
               >
-                <option value="">-- Select Project --</option>
+                <option value="" className="dark:bg-slate-800">-- Select Project --</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.id} className="dark:bg-slate-800">
                     {p.name}
                   </option>
                 ))}
@@ -1153,10 +1171,10 @@ export const WorkEntriesPage: React.FC = () => {
           {/* Title */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Report Title <span className="text-red-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                 {formData.title.length}/100
               </span>
             </div>
@@ -1167,8 +1185,8 @@ export const WorkEntriesPage: React.FC = () => {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                formErrors.title ? 'border-red-400' : 'border-slate-300'
-              } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                formErrors.title ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
             />
             {formErrors.title && <p className="text-xs text-red-500 mt-1">{formErrors.title}</p>}
           </div>
@@ -1176,10 +1194,10 @@ export const WorkEntriesPage: React.FC = () => {
           {/* Description */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Detailed Work Description <span className="text-red-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                 {formData.description.length}/1000
               </span>
             </div>
@@ -1190,8 +1208,8 @@ export const WorkEntriesPage: React.FC = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                formErrors.description ? 'border-red-400' : 'border-slate-300'
-              } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                formErrors.description ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
             />
             {formErrors.description && (
               <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>
@@ -1201,16 +1219,16 @@ export const WorkEntriesPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Category */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Category <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className="dark:bg-slate-800">
                     {c}
                   </option>
                 ))}
@@ -1219,7 +1237,7 @@ export const WorkEntriesPage: React.FC = () => {
 
             {/* Technology */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Technology / Tools <span className="text-red-500">*</span>
               </label>
               <input
@@ -1229,8 +1247,8 @@ export const WorkEntriesPage: React.FC = () => {
                 value={formData.technology}
                 onChange={(e) => setFormData({ ...formData, technology: e.target.value })}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                  formErrors.technology ? 'border-red-400' : 'border-slate-300'
-                } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                  formErrors.technology ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+                } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
               />
               {formErrors.technology && (
                 <p className="text-xs text-red-500 mt-1">{formErrors.technology}</p>
@@ -1239,11 +1257,11 @@ export const WorkEntriesPage: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={handleCloseCreate}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1252,20 +1270,20 @@ export const WorkEntriesPage: React.FC = () => {
                 type="button"
                 disabled={actionLoading}
                 onClick={() => handleSaveEntry('DRAFT')}
-                className="px-3.5 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <FileEdit className="w-3.5 h-3.5 inline mr-1.5 text-slate-500" />
+                <FileEdit className="w-3.5 h-3.5 inline mr-1.5 text-slate-500 dark:text-slate-400" />
                 Save as Draft
               </button>
-              {isIndividual ? (
+              {isIndividual || isAdmin ? (
                 <>
                   <button
                     type="button"
                     disabled={actionLoading}
                     onClick={() => handleSaveEntry('PENDING')}
-                    className="px-3.5 py-2 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                    className="px-3.5 py-2 text-sm font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-300 dark:border-amber-800 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    <Clock className="w-3.5 h-3.5 inline mr-1.5 text-amber-600" />
+                    <Clock className="w-3.5 h-3.5 inline mr-1.5 text-amber-600 dark:text-amber-400" />
                     Save as In Progress
                   </button>
                   <button
@@ -1275,7 +1293,7 @@ export const WorkEntriesPage: React.FC = () => {
                     className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5 inline mr-1.5" />
-                    {actionLoading ? 'Saving...' : 'Mark as Completed'}
+                    {actionLoading ? 'Saving...' : (isAdmin ? 'Publish & Approve' : 'Mark as Completed')}
                   </button>
                 </>
               ) : (
@@ -1307,8 +1325,8 @@ export const WorkEntriesPage: React.FC = () => {
         <div className="space-y-4">
           {/* Rejection Alert Header if Rejected */}
           {editingEntry?.status?.toUpperCase() === 'REJECTED' && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start space-x-2.5">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex items-start space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold">Reviewer Feedback:</span>{' '}
                 {editingEntry.rejectionReason || 'Please review and correct the details before resubmitting.'}
@@ -1317,13 +1335,13 @@ export const WorkEntriesPage: React.FC = () => {
           )}
 
           {formErrors.form && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
               {formErrors.form}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
               Date <span className="text-red-500">*</span>
             </label>
             <input
@@ -1331,18 +1349,18 @@ export const WorkEntriesPage: React.FC = () => {
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                formErrors.date ? 'border-red-400' : 'border-slate-300'
-              } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                formErrors.date ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
             />
             {formErrors.date && <p className="text-xs text-red-500 mt-1">{formErrors.date}</p>}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Title <span className="text-red-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                 {formData.title.length}/100
               </span>
             </div>
@@ -1352,18 +1370,18 @@ export const WorkEntriesPage: React.FC = () => {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                formErrors.title ? 'border-red-400' : 'border-slate-300'
-              } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                formErrors.title ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
             />
             {formErrors.title && <p className="text-xs text-red-500 mt-1">{formErrors.title}</p>}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Description <span className="text-red-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                 {formData.description.length}/1000
               </span>
             </div>
@@ -1373,8 +1391,8 @@ export const WorkEntriesPage: React.FC = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                formErrors.description ? 'border-red-400' : 'border-slate-300'
-              } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                formErrors.description ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
             />
             {formErrors.description && (
               <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>
@@ -1383,16 +1401,16 @@ export const WorkEntriesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Category <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className="dark:bg-slate-800">
                     {c}
                   </option>
                 ))}
@@ -1400,7 +1418,7 @@ export const WorkEntriesPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Technology <span className="text-red-500">*</span>
               </label>
               <input
@@ -1409,8 +1427,8 @@ export const WorkEntriesPage: React.FC = () => {
                 value={formData.technology}
                 onChange={(e) => setFormData({ ...formData, technology: e.target.value })}
                 className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                  formErrors.technology ? 'border-red-400' : 'border-slate-300'
-                } focus:outline-none focus:ring-2 focus:ring-blue-300`}
+                  formErrors.technology ? 'border-red-400' : 'border-slate-300 dark:border-slate-700'
+                } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500`}
               />
               {formErrors.technology && (
                 <p className="text-xs text-red-500 mt-1">{formErrors.technology}</p>
@@ -1418,11 +1436,11 @@ export const WorkEntriesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={handleCloseEdit}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1431,11 +1449,11 @@ export const WorkEntriesPage: React.FC = () => {
                 type="button"
                 disabled={actionLoading}
                 onClick={() => handleUpdateEntry()}
-                className="px-3.5 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Save Changes
               </button>
-              {isIndividual && (
+              {(isIndividual || isAdmin) && (
                 <button
                   type="button"
                   disabled={actionLoading}
@@ -1443,10 +1461,10 @@ export const WorkEntriesPage: React.FC = () => {
                   className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5 inline mr-1.5" />
-                  {actionLoading ? 'Saving...' : 'Save & Mark Completed'}
+                  {actionLoading ? 'Saving...' : (isAdmin ? 'Publish & Approve' : 'Save & Mark Completed')}
                 </button>
               )}
-              {!isIndividual && editingEntry?.status?.toUpperCase() === 'REJECTED' && (
+              {!isIndividual && !isAdmin && editingEntry?.status?.toUpperCase() === 'REJECTED' && (
                 <button
                   type="button"
                   disabled={actionLoading}
@@ -1466,31 +1484,31 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal
         isOpen={!!submittingEntry}
         onClose={() => setSubmittingEntry(null)}
-        title={isIndividual ? "Complete Work Report" : "Submit Work Report for Review"}
+        title={isAdmin || isIndividual ? "Publish & Approve Work Report" : "Submit Work Report for Review"}
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            {isIndividual ? (
-              <>Are you sure you want to mark this work report as <strong className="text-emerald-700">Completed</strong>?</>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {isAdmin || isIndividual ? (
+              <>Are you sure you want to publish this work report as <strong className="text-emerald-700 dark:text-emerald-400">Approved & Completed</strong>?</>
             ) : (
               <>
                 Are you sure you want to submit this work report? After submission, it will be marked as{' '}
-                <strong className="text-amber-700">Pending Review</strong> and sent to your administrator for verification.
+                <strong className="text-amber-700 dark:text-amber-400">Pending Review</strong> and sent to your administrator for verification.
               </>
             )}
           </p>
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="font-bold text-slate-800">{submittingEntry?.title}</div>
-            <div className="text-xs text-slate-500 mt-1">
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="font-bold text-slate-800 dark:text-white">{submittingEntry?.title}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Project: {submittingEntry?.projectName || `#${submittingEntry?.projectId}`} &bull; Date: {submittingEntry?.date}
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setSubmittingEntry(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1499,13 +1517,13 @@ export const WorkEntriesPage: React.FC = () => {
               disabled={actionLoading}
               onClick={handleSubmitConfirm}
               className={`px-4 py-2 text-sm font-semibold text-white ${
-                isIndividual ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+                isAdmin || isIndividual ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
               } rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer`}
             >
-              {isIndividual ? (
+              {isAdmin || isIndividual ? (
                 <>
                   <Check className="w-3.5 h-3.5 inline mr-1.5" />
-                  {actionLoading ? 'Saving...' : 'Mark as Completed'}
+                  {actionLoading ? 'Publishing...' : 'Publish as Approved'}
                 </>
               ) : (
                 <>
@@ -1525,23 +1543,23 @@ export const WorkEntriesPage: React.FC = () => {
         title={isIndividual ? "Reopen as Draft" : "Withdraw Submission to Draft"}
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             {isIndividual
               ? "Reopen this entry as a Draft? You will be able to edit and update details."
               : "Are you sure you want to withdraw this report? It will be moved back to Draft status so you can edit and improve it."}
           </p>
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="font-bold text-slate-800">{withdrawingEntry?.title}</div>
-            <div className="text-xs text-slate-500 mt-1">
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="font-bold text-slate-800 dark:text-white">{withdrawingEntry?.title}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Project: {withdrawingEntry?.projectName || `#${withdrawingEntry?.projectId}`} &bull; Date: {withdrawingEntry?.date}
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setWithdrawingEntry(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1549,7 +1567,7 @@ export const WorkEntriesPage: React.FC = () => {
               type="button"
               disabled={actionLoading}
               onClick={handleWithdrawConfirm}
-              className="px-4 py-2 text-sm font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/40 hover:bg-amber-200 dark:hover:bg-amber-900/50 border border-amber-300 dark:border-amber-800 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 inline mr-1.5" />
               {actionLoading ? 'Reopening...' : (isIndividual ? 'Reopen as Draft' : 'Withdraw to Draft')}
@@ -1562,26 +1580,26 @@ export const WorkEntriesPage: React.FC = () => {
       <Modal
         isOpen={!!approvingEntry}
         onClose={() => setApprovingEntry(null)}
-        title={isIndividual ? "Mark Work as Completed" : "Approve Work Report"}
+        title={isIndividual || (isAdmin && approvingEntry?.userId === currentUserId) ? "Mark Work as Completed" : "Approve Work Report"}
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            {isIndividual
-              ? "Mark this work entry as Completed? You can reopen it as a draft or edit it anytime."
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {isIndividual || (isAdmin && approvingEntry?.userId === currentUserId)
+              ? "Mark this work entry as Approved & Completed? You can reopen it as a draft or edit it anytime."
               : "Approve this submitted work report? Approved reports are locked and verified for official reports."}
           </p>
-          <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
-            <div className="font-bold text-emerald-900">{approvingEntry?.title}</div>
-            <div className="text-xs text-emerald-700 mt-1">
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+            <div className="font-bold text-emerald-900 dark:text-emerald-200">{approvingEntry?.title}</div>
+            <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
               Project: {approvingEntry?.projectName || `#${approvingEntry?.projectId}`} &bull; Date: {approvingEntry?.date}
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setApprovingEntry(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1592,7 +1610,7 @@ export const WorkEntriesPage: React.FC = () => {
               className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               <Check className="w-3.5 h-3.5 inline mr-1.5" />
-              {actionLoading ? 'Saving...' : (isIndividual ? 'Mark as Completed' : 'Approve Report')}
+              {actionLoading ? 'Saving...' : (isIndividual || (isAdmin && approvingEntry?.userId === currentUserId) ? 'Mark as Completed' : 'Approve Report')}
             </button>
           </div>
         </div>
@@ -1605,18 +1623,18 @@ export const WorkEntriesPage: React.FC = () => {
         title="Reject Work Report with Feedback"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Explain what needs correction before this work report can be accepted:
           </p>
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="font-bold text-slate-800">{rejectingEntry?.title}</div>
-            <div className="text-xs text-slate-500 mt-1">
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="font-bold text-slate-800 dark:text-white">{rejectingEntry?.title}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Project: {rejectingEntry?.projectName || `#${rejectingEntry?.projectId}`} &bull; Date: {rejectingEntry?.date}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
               Rejection Comments & Required Changes
             </label>
             <textarea
@@ -1624,15 +1642,15 @@ export const WorkEntriesPage: React.FC = () => {
               placeholder="e.g. Please clarify test coverage and specific endpoints delivered."
               value={rejectionReasonInput}
               onChange={(e) => setRejectionReasonInput(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-300"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
             />
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setRejectingEntry(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1656,21 +1674,21 @@ export const WorkEntriesPage: React.FC = () => {
         title="Delete Work Entry"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Are you sure you want to permanently delete this work entry?
           </p>
-          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-            <div className="font-bold text-slate-800">{deletingEntry?.title}</div>
-            <div className="text-xs text-slate-500 mt-1">
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="font-bold text-slate-800 dark:text-white">{deletingEntry?.title}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Project: {deletingEntry?.projectName || `#${deletingEntry?.projectId}`} &bull; Date: {deletingEntry?.date}
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setDeletingEntry(null)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>

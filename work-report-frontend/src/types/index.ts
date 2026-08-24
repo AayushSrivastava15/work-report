@@ -6,6 +6,8 @@ export interface UserResponse {
   status: string;
   department?: string;
   designation?: string;
+  bio?: string;
+  avatarUrl?: string;
   employeeId?: string;
   rejectionReason?: string;
   approvedAt?: string;
@@ -18,6 +20,40 @@ export interface UserResponse {
   teamId?: number;
   teamName?: string;
   isManager?: boolean;
+}
+
+export interface UserProfileUpdateRequest {
+  name: string;
+  department?: string;
+  designation?: string;
+  bio?: string;
+  avatarUrl?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface OrganizationDetailsResponse {
+  id: number;
+  name: string;
+  code: string;
+  type: string;
+  ownerId?: number;
+  ownerName?: string;
+  ownerEmail?: string;
+  totalMembers: number;
+  totalTeams: number;
+  totalProjects: number;
+  totalReports: number;
+  plan: string;
+  createdAt: string;
+}
+
+export interface OrganizationUpdateRequest {
+  name: string;
 }
 
 export interface UserRequest {
@@ -170,6 +206,93 @@ export interface DashboardTechnologyResponse {
 export interface DashboardStatusResponse {
   status: string;
   workCount: number;
+}
+
+export interface KpiMetrics {
+  totalWorkEntries: number;
+  totalProjects: number;
+  activeProjects: number;
+  completedWork: number;
+  completedPercentage: number;
+  inProgressWork: number;
+  inProgressPercentage: number;
+  draftWork: number;
+  rejectedWork: number;
+  technologiesUsed: number;
+  previousPeriodEntries: number;
+  growthPercentage: number;
+}
+
+export interface ActivityTrendItem {
+  period: string;
+  date: string;
+  totalEntries: number;
+  completedEntries: number;
+  inProgressEntries: number;
+  draftEntries: number;
+}
+
+export interface ProjectAnalyticsItem {
+  projectId: number | null;
+  projectName: string;
+  workCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  percentage: number;
+}
+
+export interface CategoryAnalyticsItem {
+  category: string;
+  workCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  percentage: number;
+}
+
+export interface TechnologyAnalyticsItem {
+  technology: string;
+  workCount: number;
+  projectCount: number;
+  projects: string[];
+  percentage: number;
+}
+
+export interface StatusAnalyticsItem {
+  status: string;
+  label: string;
+  workCount: number;
+  percentage: number;
+  color: string;
+}
+
+export interface WorkDistributionItem {
+  projectId: number | null;
+  projectName: string;
+  totalCount: number;
+  categoryCounts: Record<string, number>;
+}
+
+export interface DashboardAnalyticsResponse {
+  kpis: KpiMetrics;
+  activityTrends: ActivityTrendItem[];
+  projects: ProjectAnalyticsItem[];
+  categories: CategoryAnalyticsItem[];
+  technologies: TechnologyAnalyticsItem[];
+  statuses: StatusAnalyticsItem[];
+  workDistribution: WorkDistributionItem[];
+  recentEntries: WorkEntryResponse[];
+}
+
+export interface AnalyticsFilterParams {
+  startDate?: string;
+  endDate?: string;
+  projectId?: number;
+  category?: string;
+  technology?: string;
+  status?: string;
+  keyword?: string;
+  aggregation?: 'DAY' | 'WEEK' | 'MONTH';
+  teamMemberId?: number;
 }
 
 export interface ReportFilterParams {

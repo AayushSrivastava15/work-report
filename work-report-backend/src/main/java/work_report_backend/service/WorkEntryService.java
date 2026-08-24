@@ -74,14 +74,21 @@ public class WorkEntryService {
 
         boolean isIndividual = user.getOrganization() != null &&
                 "INDIVIDUAL".equalsIgnoreCase(user.getOrganization().getType());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
 
         String initialStatus = request.getStatus() != null ? request.getStatus().trim().toUpperCase() : "DRAFT";
-        if (isIndividual && ("PENDING".equals(initialStatus) || "SUBMITTED".equals(initialStatus) || "COMPLETED".equals(initialStatus) || "APPROVED".equals(initialStatus))) {
+        if ((isIndividual || isAdmin) && ("APPROVED".equals(initialStatus) || "COMPLETED".equals(initialStatus))) {
             workEntry.setStatus("APPROVED");
             workEntry.setSubmittedAt(LocalDateTime.now());
             workEntry.setReviewedAt(LocalDateTime.now());
             workEntry.setReviewerId(user.getId());
-            workEntry.setReviewerName(user.getName());
+            workEntry.setReviewerName(user.getName() != null ? user.getName() : "Administrator");
+        } else if (isIndividual && ("PENDING".equals(initialStatus) || "SUBMITTED".equals(initialStatus))) {
+            workEntry.setStatus("APPROVED");
+            workEntry.setSubmittedAt(LocalDateTime.now());
+            workEntry.setReviewedAt(LocalDateTime.now());
+            workEntry.setReviewerId(user.getId());
+            workEntry.setReviewerName(user.getName() != null ? user.getName() : "Self");
         } else {
             workEntry.setStatus(initialStatus);
             if ("PENDING".equalsIgnoreCase(initialStatus) || "SUBMITTED".equalsIgnoreCase(initialStatus)) {
@@ -206,20 +213,21 @@ public class WorkEntryService {
 
     // ── Phase 14 — Workflow Lifecycle Operations ───────────────────────────────
 
-    // 1. Submit Report for Review (DRAFT -> PENDING or DRAFT -> APPROVED for Individual)
+    // 1. Submit Report for Review (DRAFT -> PENDING or DRAFT -> APPROVED for Individual / Admin)
     public WorkEntryResponse submitWorkEntry(Long id) {
         WorkEntry entry = workEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Work entry not found with id: " + id));
 
         boolean isIndividual = entry.getOrganization() != null &&
                 "INDIVIDUAL".equalsIgnoreCase(entry.getOrganization().getType());
+        boolean isAdmin = entry.getUser() != null && "ADMIN".equalsIgnoreCase(entry.getUser().getRole());
 
-        if (isIndividual) {
+        if (isIndividual || isAdmin) {
             entry.setStatus("APPROVED");
             entry.setSubmittedAt(LocalDateTime.now());
             entry.setReviewedAt(LocalDateTime.now());
             entry.setReviewerId(entry.getUser() != null ? entry.getUser().getId() : null);
-            entry.setReviewerName(entry.getUser() != null ? entry.getUser().getName() : "Self");
+            entry.setReviewerName(entry.getUser() != null ? entry.getUser().getName() : "Administrator");
             entry.setRejectionReason(null);
         } else {
             entry.setStatus("PENDING");
@@ -256,7 +264,7 @@ public class WorkEntryService {
 
         if (reviewer != null) {
             if (!rbacService.canReviewWorkEntry(reviewer, entry)) {
-                if (entry.getUser() != null && reviewer.getId().equals(entry.getUser().getId())) {
+                if (entry.getUser() != null && reviewer.getId().equals(entry.getUser().getId()) && !"ADMIN".equalsIgnoreCase(reviewer.getRole())) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot approve your own work report.");
                 }
                 throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to approve this report.");
@@ -328,7 +336,8 @@ public class WorkEntryService {
 
         Page<WorkEntry> entryPage;
         if (status != null && !status.isBlank()) {
-            entryPage = workEntryRepository.findByTeamIdAndOrgAndStatus(teamId, orgId, status.trim().toUpperCase(), pageable);
+            List<String> statuses = expandStatusGroup(status);
+            entryPage = workEntryRepository.findByTeamIdAndOrgAndStatuses(teamId, orgId, statuses, pageable);
         } else {
             entryPage = workEntryRepository.findByTeamIdAndOrg(teamId, orgId, pageable);
         }
@@ -499,9 +508,61 @@ public class WorkEntryService {
                 .collect(Collectors.toList());
     }
 
+    private List<String> expandStatusGroup(String status) {
+        if (status == null || status.isBlank()) {
+            return List.of();
+        }
+        String upper = status.trim().toUpperCase();
+        switch (upper) {
+            case "PENDING":
+            case "SUBMITTED":
+            case "IN PROGRESS":
+            case "IN_PROGRESS":
+                return List.of("pending", "submitted", "in progress", "in_progress");
+            case "APPROVED":
+            case "COMPLETED":
+                return List.of("approved", "completed");
+            case "DRAFT":
+                return List.of("draft");
+            case "REJECTED":
+                return List.of("rejected");
+            default:
+                return List.of(status.trim().toLowerCase());
+        }
+    }
+
     public PageResponse<WorkEntryResponse> filterByStatus(String status, int page, int size) {
         Pageable pageable = createPageable(page, size, defaultSort());
-        Page<WorkEntry> entryPage = workEntryRepository.findByStatusIgnoreCase(status, pageable);
+        List<String> statuses = expandStatusGroup(status);
+        Page<WorkEntry> entryPage = workEntryRepository.findByStatuses(statuses, pageable);
+        return PageResponse.of(entryPage, this::convertToResponse);
+    }
+
+    public PageResponse<WorkEntryResponse> filterByUserAndStatus(Long userId, String status, int page, int size) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+        Pageable pageable = createPageable(page, size, defaultSort());
+        List<String> statuses = expandStatusGroup(status);
+        Page<WorkEntry> entryPage = workEntryRepository.findByUserIdAndStatuses(userId, statuses, pageable);
+        return PageResponse.of(entryPage, this::convertToResponse);
+    }
+
+    public PageResponse<WorkEntryResponse> filterByUserAndCategory(Long userId, String category, int page, int size) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+        Pageable pageable = createPageable(page, size, defaultSort());
+        Page<WorkEntry> entryPage = workEntryRepository.findByUserIdAndCategoryIgnoreCase(userId, category, pageable);
+        return PageResponse.of(entryPage, this::convertToResponse);
+    }
+
+    public PageResponse<WorkEntryResponse> filterByUserAndTechnology(Long userId, String technology, int page, int size) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+        Pageable pageable = createPageable(page, size, defaultSort());
+        Page<WorkEntry> entryPage = workEntryRepository.findByUserIdAndTechnologyIgnoreCase(userId, technology, pageable);
         return PageResponse.of(entryPage, this::convertToResponse);
     }
 
@@ -517,6 +578,15 @@ public class WorkEntryService {
     public PageResponse<WorkEntryResponse> searchByKeyword(String keyword, int page, int size) {
         Pageable pageable = createPageable(page, size, defaultSort());
         Page<WorkEntry> entryPage = workEntryRepository.searchByKeyword(keyword, pageable);
+        return PageResponse.of(entryPage, this::convertToResponse);
+    }
+
+    public PageResponse<WorkEntryResponse> searchByKeywordForUser(Long userId, String keyword, int page, int size) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
+        Pageable pageable = createPageable(page, size, defaultSort());
+        Page<WorkEntry> entryPage = workEntryRepository.searchByKeywordForUser(userId, keyword, pageable);
         return PageResponse.of(entryPage, this::convertToResponse);
     }
 

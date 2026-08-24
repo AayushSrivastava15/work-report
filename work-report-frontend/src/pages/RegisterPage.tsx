@@ -3,30 +3,35 @@ import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { useToast } from '../context/ToastContext';
 import {
-  Briefcase,
   User,
   Mail,
-  Lock,
   Building,
-  ArrowRight,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  EyeOff,
-  Home,
-  UserCheck,
-  Users,
   Building2,
+  KeyRound,
+  CheckCircle2,
+  ArrowRight,
   Copy,
   Check,
-  KeyRound
 } from 'lucide-react';
+import {
+  AuthLayout,
+  AuthHeader,
+  AuthCard,
+  AuthField,
+  PasswordField,
+  WorkspaceSelector,
+  type WorkspaceMode,
+  AuthButton,
+  AuthAlert,
+} from '../components/auth';
+import { motion, AnimatePresence } from 'motion/react';
+import { tabContentVariants } from '../motion';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
 
-  const [mode, setMode] = useState<'CREATE_COMPANY' | 'JOIN_TEAM' | 'INDIVIDUAL'>('CREATE_COMPANY');
+  const [mode, setMode] = useState<WorkspaceMode>('CREATE_COMPANY');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,13 +39,21 @@ export const RegisterPage: React.FC = () => {
   const [department, setDepartment] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [organizationCode, setOrganizationCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSuccess, setIsSuccess] = useState(false);
   const [registeredUser, setRegisteredUser] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  const clearFieldError = (field: string) => {
+    setFormErrors((prev) => {
+      if (!prev[field]) return prev;
+      const updated = { ...prev };
+      delete updated[field];
+      return updated;
+    });
+  };
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -119,381 +132,454 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      {/* Top Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center">
-        <Link
-          to="/"
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-500 hover:text-blue-600 mb-6 transition-colors"
-        >
-          <Home className="w-3.5 h-3.5" />
-          <span>Back to Home</span>
-        </Link>
+    <AuthLayout>
+      <AuthHeader
+        title="Join Work Report Platform"
+        subtitle="Create an organization, join your team, or start a personal workspace"
+      />
 
-        <div className="flex justify-center mb-2">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md">
-            <Briefcase className="w-6 h-6" />
-          </div>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Join Work Report Platform
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          Create an organization, join your team, or start a personal workspace
-        </p>
-      </div>
+      <AuthCard variant="wide">
+        {/* SUCCESS SCREEN */}
+        {isSuccess && registeredUser ? (
+          <div className="text-center space-y-5 py-2">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200/80 dark:border-emerald-800 shadow-xs">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-xl">
-        <div className="bg-white py-8 px-6 sm:px-10 shadow-md rounded-2xl border border-slate-200/80">
-          {/* SUCCESS SCREEN */}
-          {isSuccess && registeredUser ? (
-            <div className="text-center space-y-5 animate-fade-in">
-              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                {mode === 'CREATE_COMPANY'
+                  ? 'Organization Created Successfully!'
+                  : mode === 'JOIN_TEAM'
+                  ? 'Join Request Submitted!'
+                  : 'Personal Workspace Ready!'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                Account for <span className="font-semibold text-slate-800 dark:text-slate-200">{registeredUser.email}</span> has been created.
+              </p>
+            </div>
 
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">
-                  {mode === 'CREATE_COMPANY'
-                    ? 'Organization Created Successfully!'
-                    : mode === 'JOIN_TEAM'
-                    ? 'Join Request Submitted!'
-                    : 'Personal Workspace Ready!'}
-                </h3>
-                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                  Account for <span className="font-semibold text-slate-800">{registeredUser.email}</span> has been created.
+            {/* Company Admin Invite Code Card */}
+            {mode === 'CREATE_COMPANY' && registeredUser.organizationCode && (
+              <div className="p-4 bg-blue-50/70 dark:bg-blue-950/50 rounded-xl border border-blue-200/90 dark:border-blue-800 text-left space-y-2.5">
+                <div>
+                  <div className="text-[11px] text-blue-900 dark:text-blue-300 font-bold uppercase tracking-wider">
+                    Your Company Invite Code
+                  </div>
+                  <div className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                    Share this code with employees who need to join{' '}
+                    <span className="font-semibold">{registeredUser.organizationName}</span>:
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-blue-300 dark:border-blue-700 shadow-2xs">
+                  <span className="font-mono text-lg font-bold text-blue-700 dark:text-blue-300 tracking-wider flex-1">
+                    {registeredUser.organizationCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(registeredUser.organizationCode)}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
+                  >
+                    {copiedCode ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                    {copiedCode ? 'Copied!' : 'Copy Code'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-blue-600 dark:text-blue-400">
+                  You are the primary <strong>Organization Admin</strong>. You will review and approve new team requests.
                 </p>
               </div>
+            )}
 
-              {/* Company Admin Invite Code Card */}
-              {mode === 'CREATE_COMPANY' && registeredUser.organizationCode && (
-                <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 text-left space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-blue-900 font-bold uppercase tracking-wider">
-                        Your Company Invite Code
-                      </div>
-                      <div className="text-xs text-blue-700">
-                        Share this code with employees who need to join {registeredUser.organizationName}:
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 bg-white p-2.5 rounded-lg border border-blue-300">
-                    <span className="font-mono text-lg font-bold text-blue-700 tracking-wider flex-1">
-                      {registeredUser.organizationCode}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(registeredUser.organizationCode)}
-                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
-                    >
-                      {copiedCode ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
-                      {copiedCode ? 'Copied!' : 'Copy Code'}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-blue-600">
-                    You are the primary <strong>Organization Admin</strong>. You will review and approve new team requests.
-                  </p>
+            {/* Employee Join Team Info */}
+            {mode === 'JOIN_TEAM' && (
+              <div className="p-4 bg-amber-50/90 dark:bg-amber-950/50 rounded-xl border border-amber-200/90 dark:border-amber-800 text-left text-xs text-amber-900 dark:text-amber-300 space-y-1">
+                <div className="font-bold flex items-center space-x-1.5">
+                  <Building2 className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                  <span>Awaiting Approval from {registeredUser.organizationName || 'Organization Admin'}</span>
                 </div>
-              )}
+                <p className="text-amber-800 dark:text-amber-300 leading-relaxed text-[11px] sm:text-xs">
+                  Your account is in <strong>Pending</strong> status. Once your company administrator approves your request, you will be able to sign in and access the workspace.
+                </p>
+              </div>
+            )}
 
-              {/* Employee Join Team Info */}
-              {mode === 'JOIN_TEAM' && (
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-left text-xs text-amber-900 space-y-1">
-                  <div className="font-bold flex items-center space-x-1.5">
-                    <Building2 className="w-4 h-4 text-amber-700" />
-                    <span>Awaiting Approval from {registeredUser.organizationName || 'Organization Admin'}</span>
-                  </div>
-                  <p className="text-amber-800 leading-relaxed">
-                    Your account is in <strong>Pending</strong> status. Once your company administrator approves your request, you will be able to sign in and access the workspace.
-                  </p>
-                </div>
-              )}
+            {/* Individual Info */}
+            {mode === 'INDIVIDUAL' && (
+              <div className="p-4 bg-emerald-50/90 dark:bg-emerald-950/50 rounded-xl border border-emerald-200/90 dark:border-emerald-800 text-left text-xs text-emerald-900 dark:text-emerald-300">
+                <div className="font-bold mb-1">✓ Instant Access Activated</div>
+                <p className="text-emerald-800 dark:text-emerald-300 text-[11px] sm:text-xs">
+                  Your private workspace is live. You have full self-management privileges.
+                </p>
+              </div>
+            )}
 
-              {/* Individual Info */}
-              {mode === 'INDIVIDUAL' && (
-                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-left text-xs text-emerald-900">
-                  <div className="font-bold mb-1">✓ Instant Access Activated</div>
-                  <div>Your private workspace is live. You have full self-management privileges.</div>
-                </div>
-              )}
-
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="w-full inline-flex items-center justify-center px-4 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors cursor-pointer"
+                className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <span>Proceed to Sign In</span>
                 <ArrowRight className="w-4 h-4 ml-1.5" />
               </button>
             </div>
-          ) : (
-            /* REGISTRATION FORM */
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {formErrors.form && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start space-x-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{formErrors.form}</span>
-                </div>
-              )}
+          </div>
+        ) : (
+          /* REGISTRATION FORM */
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <AuthAlert message={formErrors.form} type="error" />
 
-              {/* 3-Way Mode Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Select Workspace Type
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {/* Option 1: Create Company */}
-                  <button
-                    type="button"
-                    onClick={() => setMode('CREATE_COMPANY')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      mode === 'CREATE_COMPANY'
-                        ? 'border-blue-600 bg-blue-50/70 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1.5 font-semibold text-xs text-slate-800">
-                      <Building2 className={`w-3.5 h-3.5 ${mode === 'CREATE_COMPANY' ? 'text-blue-600' : 'text-slate-400'}`} />
-                      <span>Create Company</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-tight">
-                      Start a new team & generate code
-                    </p>
-                  </button>
+            {/* Mode Selector */}
+            <WorkspaceSelector
+              mode={mode}
+              onChange={(newMode) => {
+                setMode(newMode);
+                setFormErrors({});
+              }}
+              disabled={loading}
+            />
 
-                  {/* Option 2: Join Team */}
-                  <button
-                    type="button"
-                    onClick={() => setMode('JOIN_TEAM')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      mode === 'JOIN_TEAM'
-                        ? 'border-blue-600 bg-blue-50/70 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1.5 font-semibold text-xs text-slate-800">
-                      <Users className={`w-3.5 h-3.5 ${mode === 'JOIN_TEAM' ? 'text-blue-600' : 'text-slate-400'}`} />
-                      <span>Join Team</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-tight">
-                      Join using Company Code
-                    </p>
-                  </button>
-
-                  {/* Option 3: Individual */}
-                  <button
-                    type="button"
-                    onClick={() => setMode('INDIVIDUAL')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      mode === 'INDIVIDUAL'
-                        ? 'border-blue-600 bg-blue-50/70 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1.5 font-semibold text-xs text-slate-800">
-                      <UserCheck className={`w-3.5 h-3.5 ${mode === 'INDIVIDUAL' ? 'text-blue-600' : 'text-slate-400'}`} />
-                      <span>Individual</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-tight">
-                      Personal solo workspace
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Mode-Specific Field 1: Company Name */}
+            {/* Dynamic Form Content by Mode */}
+            <AnimatePresence mode="wait">
+              {/* Mode: CREATE_COMPANY */}
               {mode === 'CREATE_COMPANY' && (
-                <div className="animate-fade-in">
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Company / Team Name <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Acme Corporation or Alpha Labs"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      className={`w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border ${
-                        formErrors.companyName ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-300 focus:ring-blue-200'
-                      } focus:outline-none focus:ring-2`}
-                    />
-                  </div>
-                  {formErrors.companyName && <p className="text-xs text-rose-500 mt-1">{formErrors.companyName}</p>}
-                </div>
-              )}
-
-              {/* Mode-Specific Field 2: Organization Code */}
-              {mode === 'JOIN_TEAM' && (
-                <div className="animate-fade-in bg-blue-50/50 p-3.5 rounded-xl border border-blue-200">
-                  <label className="block text-xs font-semibold text-blue-900 uppercase tracking-wider mb-1.5">
-                    Company Code <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="w-4 h-4 absolute left-3.5 top-3 text-blue-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. ALPHA-4827 or STARK-1920"
-                      value={organizationCode}
-                      onChange={(e) => setOrganizationCode(e.target.value.toUpperCase())}
-                      className={`w-full pl-10 pr-3.5 py-2 text-sm font-mono uppercase font-bold rounded-xl border ${
-                        formErrors.organizationCode ? 'border-rose-400 focus:ring-rose-200' : 'border-blue-300 focus:ring-blue-200 bg-white'
-                      } focus:outline-none focus:ring-2 text-blue-800`}
-                    />
-                  </div>
-                  <p className="text-[11px] text-blue-600 mt-1">
-                    Enter the company code provided by your organization administrator.
-                  </p>
-                  {formErrors.organizationCode && (
-                    <p className="text-xs text-rose-500 mt-1">{formErrors.organizationCode}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Full Name */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Full Name <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type="text"
+                <motion.div
+                  key="CREATE_COMPANY"
+                  variants={tabContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3.5"
+                >
+                  <AuthField
+                    id="reg-company-name"
+                    name="companyName"
+                    label="Company / Team Name"
+                    icon={Building2}
                     required
+                    placeholder="e.g. Acme Corporation or Alpha Labs"
+                    value={companyName}
+                    onChange={(e) => {
+                      setCompanyName(e.target.value);
+                      clearFieldError('companyName');
+                    }}
+                    disabled={loading}
+                    error={formErrors.companyName}
+                  />
+
+                  <AuthField
+                    id="reg-name"
+                    name="name"
+                    label="Full Name"
+                    icon={User}
+                    required
+                    autoComplete="name"
                     placeholder="e.g. Jane Doe"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className={`w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border ${
-                      formErrors.name ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-300 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-2`}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      clearFieldError('name');
+                    }}
+                    disabled={loading}
+                    error={formErrors.name}
                   />
-                </div>
-                {formErrors.name && <p className="text-xs text-rose-500 mt-1">{formErrors.name}</p>}
-              </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Email Address <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
+                  <AuthField
+                    id="reg-email"
+                    name="email"
                     type="email"
+                    label="Email Address"
+                    icon={Mail}
                     required
+                    autoComplete="email"
                     placeholder="name@company.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border ${
-                      formErrors.email ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-300 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-2`}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError('email');
+                    }}
+                    disabled={loading}
+                    error={formErrors.email}
                   />
-                </div>
-                {formErrors.email && <p className="text-xs text-rose-500 mt-1">{formErrors.email}</p>}
-              </div>
 
-              {/* Department (Optional) */}
-              {mode !== 'INDIVIDUAL' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Department / Division <span className="text-slate-400 font-normal normal-case">(Optional)</span>
-                  </label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Core Engineering"
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                </div>
-              )}
+                  <AuthField
+                    id="reg-department"
+                    name="department"
+                    label="Department / Division"
+                    icon={Building}
+                    optional
+                    placeholder="e.g. Core Engineering"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    disabled={loading}
+                  />
 
-              {/* Password */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Password <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
+                  <PasswordField
+                    id="reg-password"
+                    name="password"
+                    label="Password"
+                    autoComplete="new-password"
                     required
                     placeholder="Min 6 characters"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full pl-10 pr-10 py-2 text-sm rounded-xl border ${
-                      formErrors.password ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-300 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-2`}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearFieldError('password');
+                    }}
+                    disabled={loading}
+                    error={formErrors.password}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {formErrors.password && <p className="text-xs text-rose-500 mt-1">{formErrors.password}</p>}
-              </div>
 
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Confirm Password <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
+                  <PasswordField
+                    id="reg-confirm-password"
+                    name="confirmPassword"
+                    label="Confirm Password"
+                    autoComplete="new-password"
                     required
                     placeholder="Re-enter password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border ${
-                      formErrors.confirmPassword ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-300 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-2`}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      clearFieldError('confirmPassword');
+                    }}
+                    disabled={loading}
+                    error={formErrors.confirmPassword}
                   />
-                </div>
-                {formErrors.confirmPassword && (
-                  <p className="text-xs text-rose-500 mt-1">{formErrors.confirmPassword}</p>
-                )}
-              </div>
+                </motion.div>
+              )}
 
-              {/* Submit Button */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+              {/* Mode: JOIN_TEAM */}
+              {mode === 'JOIN_TEAM' && (
+                <motion.div
+                  key="JOIN_TEAM"
+                  variants={tabContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="space-y-3.5"
                 >
-                  {loading
-                    ? 'Processing...'
-                    : mode === 'CREATE_COMPANY'
-                    ? 'Create Company & Get Code'
-                    : mode === 'JOIN_TEAM'
-                    ? 'Submit Join Request'
-                    : 'Create Personal Workspace'}
-                </button>
-              </div>
+                  <div className="p-3 sm:p-3.5 bg-blue-50/60 dark:bg-blue-950/40 rounded-xl border border-blue-200/90 dark:border-blue-800">
+                    <AuthField
+                      id="reg-org-code"
+                      name="organizationCode"
+                      label="Company Code"
+                      icon={KeyRound}
+                      required
+                      placeholder="e.g. ALPHA-4827 or STARK-1920"
+                      value={organizationCode}
+                      onChange={(e) => {
+                        setOrganizationCode(e.target.value.toUpperCase());
+                        clearFieldError('organizationCode');
+                      }}
+                      disabled={loading}
+                      error={formErrors.organizationCode}
+                      className="font-mono uppercase font-bold text-blue-800 dark:text-blue-300 tracking-wider"
+                      helperText="Enter the company code provided by your organization administrator."
+                    />
+                  </div>
 
-              {/* Link to Login */}
-              <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100">
-                Already have an account?{' '}
-                <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                  Sign In
-                </Link>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3.5">
+                    <AuthField
+                      id="reg-name"
+                      name="name"
+                      label="Full Name"
+                      icon={User}
+                      required
+                      autoComplete="name"
+                      placeholder="e.g. Jane Doe"
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        clearFieldError('name');
+                      }}
+                      disabled={loading}
+                      error={formErrors.name}
+                    />
+
+                    <AuthField
+                      id="reg-email"
+                      name="email"
+                      type="email"
+                      label="Email Address"
+                      icon={Mail}
+                      required
+                      autoComplete="email"
+                      placeholder="name@company.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearFieldError('email');
+                      }}
+                      disabled={loading}
+                      error={formErrors.email}
+                    />
+
+                    <AuthField
+                      id="reg-department"
+                      name="department"
+                      label="Department / Division"
+                      icon={Building}
+                      optional
+                      placeholder="e.g. Core Engineering"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      disabled={loading}
+                    />
+
+                    <PasswordField
+                      id="reg-password"
+                      name="password"
+                      label="Password"
+                      autoComplete="new-password"
+                      required
+                      placeholder="Min 6 characters"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearFieldError('password');
+                      }}
+                      disabled={loading}
+                      error={formErrors.password}
+                    />
+
+                    <div className="md:col-span-2">
+                      <PasswordField
+                        id="reg-confirm-password"
+                        name="confirmPassword"
+                        label="Confirm Password"
+                        autoComplete="new-password"
+                        required
+                        placeholder="Re-enter password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          clearFieldError('confirmPassword');
+                        }}
+                        disabled={loading}
+                        error={formErrors.confirmPassword}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Mode: INDIVIDUAL */}
+              {mode === 'INDIVIDUAL' && (
+                <motion.div
+                  key="INDIVIDUAL"
+                  variants={tabContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3.5"
+                >
+                  <AuthField
+                    id="reg-name"
+                    name="name"
+                    label="Full Name"
+                    icon={User}
+                    required
+                    autoComplete="name"
+                    placeholder="e.g. Jane Doe"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      clearFieldError('name');
+                    }}
+                    disabled={loading}
+                    error={formErrors.name}
+                  />
+
+                  <AuthField
+                    id="reg-email"
+                    name="email"
+                    type="email"
+                    label="Email Address"
+                    icon={Mail}
+                    required
+                    autoComplete="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError('email');
+                    }}
+                    disabled={loading}
+                    error={formErrors.email}
+                  />
+
+                  <PasswordField
+                    id="reg-password"
+                    name="password"
+                    label="Password"
+                    autoComplete="new-password"
+                    required
+                    placeholder="Min 6 characters"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearFieldError('password');
+                    }}
+                    disabled={loading}
+                    error={formErrors.password}
+                  />
+
+                  <PasswordField
+                    id="reg-confirm-password"
+                    name="confirmPassword"
+                    label="Confirm Password"
+                    autoComplete="new-password"
+                    required
+                    placeholder="Re-enter password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      clearFieldError('confirmPassword');
+                    }}
+                    disabled={loading}
+                    error={formErrors.confirmPassword}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Submit Button */}
+            <div className="pt-2">
+              <AuthButton
+                type="submit"
+                loading={loading}
+                loadingText={
+                  mode === 'CREATE_COMPANY'
+                    ? 'Creating Company...'
+                    : mode === 'JOIN_TEAM'
+                    ? 'Submitting Request...'
+                    : 'Creating Workspace...'
+                }
+              >
+                {mode === 'CREATE_COMPANY'
+                  ? 'Create Company & Get Code'
+                  : mode === 'JOIN_TEAM'
+                  ? 'Submit Join Request'
+                  : 'Create Personal Workspace'}
+              </AuthButton>
+            </div>
+
+            {/* Switch to Login */}
+            <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
+              Already have an account?{' '}
+              <Link
+                to="/login"
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
+              >
+                Sign In
+              </Link>
+            </div>
+          </form>
+        )}
+      </AuthCard>
+    </AuthLayout>
   );
 };
+
+export default RegisterPage;

@@ -8,6 +8,7 @@ import type { ProjectResponse, ReportFilterParams, ReportPreviewResponse, WorkEn
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { EmptyState } from '../components/common/EmptyState';
+import { Pagination } from '../components/common/Pagination';
 import { WorkEntryDetailsModal } from '../components/work-entries/WorkEntryDetailsModal';
 import {
   FileBarChart,
@@ -24,6 +25,9 @@ import {
   Loader2,
   Eye,
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import { staggerContainerVariants, cardItemVariants } from '../motion';
+import { AnimatedNumber } from '../components/common/AnimatedNumber';
 
 const CATEGORIES = [
   'Development',
@@ -37,6 +41,66 @@ const CATEGORIES = [
 
 const STATUSES = ['Completed', 'In Progress', 'Pending', 'Blocked'];
 
+const getCategoryBadgeClass = (category?: string): string => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('dev') || cat.includes('feature')) {
+    return 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+  }
+  if (cat.includes('bug') || cat.includes('fix')) {
+    return 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+  }
+  if (cat.includes('test') || cat.includes('qa')) {
+    return 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+  }
+  if (cat.includes('arch') || cat.includes('system') || cat.includes('design')) {
+    return 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+  }
+  if (cat.includes('doc') || cat.includes('ui') || cat.includes('ux')) {
+    return 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800';
+  }
+  if (cat.includes('ops') || cat.includes('infra') || cat.includes('cloud')) {
+    return 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+  }
+  if (cat.includes('review') || cat.includes('audit')) {
+    return 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800';
+  }
+  return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+};
+
+const renderStatusBadge = (status?: string) => {
+  const s = (status || '').toUpperCase();
+  if (s === 'APPROVED' || s === 'COMPLETED') {
+    return (
+      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 shrink-0" />
+        {status}
+      </span>
+    );
+  }
+  if (s === 'PENDING' || s === 'SUBMITTED' || s === 'IN PROGRESS') {
+    return (
+      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 shrink-0" />
+        {status}
+      </span>
+    );
+  }
+  if (s === 'REJECTED' || s === 'BLOCKED') {
+    return (
+      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 shrink-0" />
+        {status}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5 shrink-0" />
+      {status || 'Draft'}
+    </span>
+  );
+};
+
 export const ReportsPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
   const { showSuccess, showError, showInfo } = useToast();
@@ -46,6 +110,10 @@ export const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Pagination state
+  const [page, setPage] = useState<number>(0);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Filter form state
   const [startDate, setStartDate] = useState<string>('');
@@ -66,6 +134,15 @@ export const ReportsPage: React.FC = () => {
 
   // Selected entry for Details Modal
   const [selectedEntry, setSelectedEntry] = useState<WorkEntryResponse | null>(null);
+
+  const totalEntries = report?.entries?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+
+  const paginatedEntries = React.useMemo(() => {
+    if (!report?.entries) return [];
+    const start = page * pageSize;
+    return report.entries.slice(start, start + pageSize);
+  }, [report?.entries, page, pageSize]);
 
   // Load user projects on mount
   useEffect(() => {
@@ -115,6 +192,7 @@ export const ReportsPage: React.FC = () => {
       const data = await reportApi.getReportPreview(currentUserId, filters);
       setReport(data);
       setAppliedFilters(filters);
+      setPage(0);
     } catch (err: any) {
       setError(err.message || 'Unable to generate the report. Please try again.');
     } finally {
@@ -138,6 +216,7 @@ export const ReportsPage: React.FC = () => {
       const data = await reportApi.getReportPreview(currentUserId, {});
       setReport(data);
       setAppliedFilters({});
+      setPage(0);
     } catch (err: any) {
       setError(err.message || 'Failed to reset report.');
     } finally {
@@ -213,11 +292,11 @@ export const ReportsPage: React.FC = () => {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-2.5">
-          <FileBarChart className="w-7 h-7 text-blue-600" />
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white tracking-tight flex items-center gap-2.5">
+          <FileBarChart className="w-7 h-7 text-blue-600 dark:text-blue-400" />
           Work Reports
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Generate, preview and export your personalized work report in PDF, Word, and Excel formats.
         </p>
       </div>
@@ -226,10 +305,10 @@ export const ReportsPage: React.FC = () => {
       {error && <ErrorAlert message={error} onRetry={handleGeneratePreview} />}
 
       {/* 1. REPORT FILTERS CARD */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center space-x-2 pb-4 mb-5 border-b border-slate-100">
-          <Filter className="w-5 h-5 text-blue-600" />
-          <h2 className="text-base font-semibold text-slate-800">Filter Criteria</h2>
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex items-center space-x-2 pb-4 mb-5 border-b border-slate-100 dark:border-slate-800">
+          <Filter className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h2 className="text-base font-semibold text-slate-800 dark:text-white">Filter Criteria</h2>
         </div>
 
         <form onSubmit={handleGeneratePreview} className="space-y-4">
@@ -238,7 +317,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-date-from"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Date From
               </label>
@@ -248,7 +327,7 @@ export const ReportsPage: React.FC = () => {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -257,7 +336,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-date-to"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Date To
               </label>
@@ -267,7 +346,7 @@ export const ReportsPage: React.FC = () => {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -276,7 +355,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-project"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Project
               </label>
@@ -284,11 +363,11 @@ export const ReportsPage: React.FC = () => {
                 id="report-project"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white cursor-pointer"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
               >
-                <option value="">All Projects</option>
+                <option value="" className="dark:bg-slate-800">All Projects</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.id} className="dark:bg-slate-800">
                     {p.name}
                   </option>
                 ))}
@@ -299,7 +378,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-category"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Category
               </label>
@@ -307,11 +386,11 @@ export const ReportsPage: React.FC = () => {
                 id="report-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white cursor-pointer"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
               >
-                <option value="">All Categories</option>
+                <option value="" className="dark:bg-slate-800">All Categories</option>
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className="dark:bg-slate-800">
                     {c}
                   </option>
                 ))}
@@ -322,7 +401,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-tech"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Technology
               </label>
@@ -332,7 +411,7 @@ export const ReportsPage: React.FC = () => {
                 placeholder="e.g. React, Spring Boot"
                 value={technology}
                 onChange={(e) => setTechnology(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -340,7 +419,7 @@ export const ReportsPage: React.FC = () => {
             <div>
               <label
                 htmlFor="report-status"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Status
               </label>
@@ -348,11 +427,11 @@ export const ReportsPage: React.FC = () => {
                 id="report-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white cursor-pointer"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
               >
-                <option value="">All Statuses</option>
+                <option value="" className="dark:bg-slate-800">All Statuses</option>
                 {STATUSES.map((s) => (
-                  <option key={s} value={s}>
+                  <option key={s} value={s} className="dark:bg-slate-800">
                     {s}
                   </option>
                 ))}
@@ -363,12 +442,12 @@ export const ReportsPage: React.FC = () => {
             <div className="sm:col-span-2">
               <label
                 htmlFor="report-keyword"
-                className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
               >
                 Keyword Search
               </label>
               <div className="relative rounded-lg shadow-2xs">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <Search className="w-4 h-4" />
                 </div>
                 <input
@@ -377,7 +456,7 @@ export const ReportsPage: React.FC = () => {
                   placeholder="Search in title, description, category, technology..."
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -389,9 +468,9 @@ export const ReportsPage: React.FC = () => {
               type="button"
               onClick={handleClearFilters}
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             >
-              <RotateCcw className="w-4 h-4 mr-1.5 text-slate-500" />
+              <RotateCcw className="w-4 h-4 mr-1.5 text-slate-500 dark:text-slate-400" />
               Clear Filters
             </button>
             <button
@@ -419,73 +498,108 @@ export const ReportsPage: React.FC = () => {
       <div className="space-y-4">
         {/* Report Summary Cards */}
         {report && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <motion.div
+            variants={staggerContainerVariants}
+            initial="initial"
+            animate="animate"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          >
             {/* User */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <motion.div
+              variants={cardItemVariants}
+              whileHover={{ y: -1, transition: { duration: 0.15 } }}
+              className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center space-x-3.5"
+            >
+              <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                 <User className="w-5 h-5" />
               </div>
               <div className="truncate">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Report For</div>
-                <div className="text-sm font-bold text-slate-800 truncate">{report.userName || currentUser?.name}</div>
-                <div className="text-xs text-slate-500 font-mono truncate">{report.userEmail || currentUser?.email}</div>
+                <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Report For</div>
+                <div className="text-sm font-bold text-slate-800 dark:text-white truncate">{report.userName || currentUser?.name}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">{report.userEmail || currentUser?.email}</div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Total Work Entries */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <motion.div
+              variants={cardItemVariants}
+              whileHover={{ y: -1, transition: { duration: 0.15 } }}
+              className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center space-x-3.5"
+            >
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Entries</div>
-                <div className="text-xl font-bold text-slate-800">{report.totalEntries}</div>
+                <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Entries</div>
+                <div className="text-xl font-bold text-slate-800 dark:text-white">
+                  <AnimatedNumber value={report.totalEntries} />
+                </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Total Projects */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
-              <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <motion.div
+              variants={cardItemVariants}
+              whileHover={{ y: -1, transition: { duration: 0.15 } }}
+              className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center space-x-3.5"
+            >
+              <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
                 <FolderKanban className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projects</div>
-                <div className="text-xl font-bold text-slate-800">{report.totalProjects}</div>
+                <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Projects</div>
+                <div className="text-xl font-bold text-slate-800 dark:text-white">
+                  <AnimatedNumber value={report.totalProjects} />
+                </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Period */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <motion.div
+              variants={cardItemVariants}
+              whileHover={{ y: -1, transition: { duration: 0.15 } }}
+              className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center space-x-3.5"
+            >
+              <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Date Period</div>
-                <div className="text-xs font-semibold text-slate-800 mt-0.5">
+                <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Date Period</div>
+                <div className="text-xs font-semibold text-slate-800 dark:text-white mt-0.5">
                   {report.startDate || 'Start'} &rarr; {report.endDate || 'End'}
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
 
         {/* Report Preview Header & Export Controls */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Report Preview
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Exact dataset that will be generated in all export formats
-              </p>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-50/50 dark:bg-slate-800/40">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/60 shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-800 dark:text-white">
+                    Report Preview
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100/80 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Exact dataset formatted for PDF, Word, and Excel exports
+                </p>
+              </div>
             </div>
 
             {/* EXPORT BUTTONS */}
             <div className="flex flex-wrap items-center gap-2.5">
               {/* PDF Button */}
-              <button
+              <motion.button
+                whileTap={hasEntries && !isAnyExporting ? { scale: 0.94 } : undefined}
                 type="button"
                 onClick={handleExportPdf}
                 disabled={!hasEntries || isAnyExporting}
@@ -498,10 +612,11 @@ export const ReportsPage: React.FC = () => {
                   <Download className="w-3.5 h-3.5 mr-1.5" />
                 )}
                 {exportingPdf ? 'Exporting PDF...' : 'Export PDF'}
-              </button>
+              </motion.button>
 
               {/* Word (DOCX) Button */}
-              <button
+              <motion.button
+                whileTap={hasEntries && !isAnyExporting ? { scale: 0.94 } : undefined}
                 type="button"
                 onClick={handleExportDocx}
                 disabled={!hasEntries || isAnyExporting}
@@ -514,10 +629,11 @@ export const ReportsPage: React.FC = () => {
                   <Download className="w-3.5 h-3.5 mr-1.5" />
                 )}
                 {exportingDocx ? 'Exporting Word...' : 'Export Word (.docx)'}
-              </button>
+              </motion.button>
 
               {/* Excel (XLSX) Button */}
-              <button
+              <motion.button
+                whileTap={hasEntries && !isAnyExporting ? { scale: 0.94 } : undefined}
                 type="button"
                 onClick={handleExportExcel}
                 disabled={!hasEntries || isAnyExporting}
@@ -530,7 +646,7 @@ export const ReportsPage: React.FC = () => {
                   <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
                 )}
                 {exportingExcel ? 'Exporting Excel...' : 'Export Excel (.xlsx)'}
-              </button>
+              </motion.button>
             </div>
           </div>
 
@@ -545,77 +661,128 @@ export const ReportsPage: React.FC = () => {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-100">
-                  <tr>
-                    <th className="px-5 py-3 whitespace-nowrap">Date</th>
-                    <th className="px-5 py-3 whitespace-nowrap">Project</th>
-                    <th className="px-5 py-3 whitespace-nowrap">Title</th>
-                    <th className="px-5 py-3">Description</th>
-                    <th className="px-5 py-3 whitespace-nowrap">Category</th>
-                    <th className="px-5 py-3 whitespace-nowrap">Technology</th>
-                    <th className="px-5 py-3 whitespace-nowrap">Status</th>
-                    <th className="px-5 py-3 whitespace-nowrap text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {report?.entries?.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      onClick={() => setSelectedEntry(entry)}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
-                    >
-                      <td className="px-5 py-3.5 whitespace-nowrap font-medium text-slate-800">
-                        {entry.date}
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap font-medium text-blue-600">
-                        {entry.projectName || '—'}
-                      </td>
-                      <td className="px-5 py-3.5 font-semibold text-slate-800 max-w-xs truncate group-hover:text-blue-600 transition-colors">
-                        {entry.title}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600 max-w-sm line-clamp-2 text-xs">
-                        {entry.description || <span className="italic text-slate-400">No description</span>}
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          {entry.category}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono">
-                        {entry.technology || '—'}
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            entry.status === 'Completed'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : entry.status === 'In Progress'
-                              ? 'bg-blue-50 text-blue-700'
-                              : entry.status === 'Pending'
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-rose-50 text-rose-700'
-                          }`}
-                        >
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setSelectedEntry(entry)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                          title="View Details"
-                          aria-label="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                  <thead className="bg-slate-50/80 dark:bg-slate-800/80 text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Date</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Project</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Work Title</th>
+                      <th className="px-5 py-3.5 min-w-[240px]">Deliverables & Description</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Category</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Tech Stack</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
+                      <th className="px-5 py-3.5 whitespace-nowrap text-right">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {paginatedEntries.map((entry) => (
+                      <tr
+                        key={entry.id}
+                        onClick={() => setSelectedEntry(entry)}
+                        className="hover:bg-blue-50/50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer group"
+                      >
+                        {/* Date */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="inline-flex items-center space-x-1.5 text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 bg-slate-100/90 dark:bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span>{entry.date}</span>
+                          </div>
+                        </td>
+
+                        {/* Project */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/80 shadow-2xs">
+                            <FolderKanban className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                            <span className="truncate max-w-[150px]">{entry.projectName || '—'}</span>
+                          </span>
+                        </td>
+
+                        {/* Title */}
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 max-w-[200px]">
+                            {entry.title}
+                          </div>
+                        </td>
+
+                        {/* Description */}
+                        <td className="px-5 py-4">
+                          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed max-w-sm font-normal">
+                            {entry.description || <span className="italic text-slate-400 dark:text-slate-500">No description provided</span>}
+                          </p>
+                        </td>
+
+                        {/* Category */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border shadow-2xs ${getCategoryBadgeClass(entry.category)}`}>
+                            {entry.category}
+                          </span>
+                        </td>
+
+                        {/* Technology */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {entry.technology ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                              {entry.technology}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {renderStatusBadge(entry.status)}
+                        </td>
+
+                        {/* Action View */}
+                        <td className="px-5 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setSelectedEntry(entry)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors cursor-pointer shadow-2xs"
+                            title="View full work entry details"
+                            aria-label="View Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* PAGINATION FOOTER */}
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <div>
+                  Showing{' '}
+                  <span className="font-semibold text-slate-800 dark:text-white">
+                    {totalEntries === 0 ? 0 : page * pageSize + 1}
+                  </span>{' '}
+                  to{' '}
+                  <span className="font-semibold text-slate-800 dark:text-white">
+                    {Math.min((page + 1) * pageSize, totalEntries)}
+                  </span>{' '}
+                  of{' '}
+                  <span className="font-semibold text-slate-800 dark:text-white">{totalEntries}</span> work entries
+                </div>
+
+                <Pagination
+                  page={page}
+                  size={pageSize}
+                  totalElements={totalEntries}
+                  totalPages={totalPages}
+                  onPageChange={(newPage) => setPage(newPage)}
+                  onSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setPage(0);
+                  }}
+                  sizeOptions={[10, 20, 50, 100]}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

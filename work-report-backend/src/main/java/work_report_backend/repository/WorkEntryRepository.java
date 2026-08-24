@@ -28,6 +28,8 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
     // Multi-Tenant Scoped Queries
     Page<WorkEntry> findByOrganizationId(Long organizationId, Pageable pageable);
 
+    long countByOrganizationId(Long organizationId);
+
     Optional<WorkEntry> findByIdAndOrganizationId(Long id, Long organizationId);
 
     List<WorkEntry> findByOrganizationId(Long organizationId);
@@ -56,6 +58,20 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
             @Param("teamId") Long teamId,
             @Param("organizationId") Long organizationId,
             @Param("status") String status,
+            Pageable pageable
+    );
+
+    @Query("""
+        SELECT w FROM WorkEntry w
+        WHERE w.user.team.id = :teamId
+          AND w.organization.id = :organizationId
+          AND LOWER(w.status) IN (:statuses)
+        ORDER BY w.date DESC, w.id DESC
+    """)
+    Page<WorkEntry> findByTeamIdAndOrgAndStatuses(
+            @Param("teamId") Long teamId,
+            @Param("organizationId") Long organizationId,
+            @Param("statuses") List<String> statuses,
             Pageable pageable
     );
 
@@ -115,11 +131,23 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
     @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.category) = LOWER(:category)")
     Page<WorkEntry> findByCategoryIgnoreCase(@Param("category") String category, Pageable pageable);
 
+    Page<WorkEntry> findByUserIdAndCategoryIgnoreCase(Long userId, String category, Pageable pageable);
+
     @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.technology) = LOWER(:technology)")
     Page<WorkEntry> findByTechnologyIgnoreCase(@Param("technology") String technology, Pageable pageable);
 
+    Page<WorkEntry> findByUserIdAndTechnologyIgnoreCase(Long userId, String technology, Pageable pageable);
+
     @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.status) = LOWER(:status)")
     Page<WorkEntry> findByStatusIgnoreCase(@Param("status") String status, Pageable pageable);
+
+    Page<WorkEntry> findByUserIdAndStatusIgnoreCase(Long userId, String status, Pageable pageable);
+
+    @Query("SELECT w FROM WorkEntry w WHERE LOWER(w.status) IN (:statuses) ORDER BY w.date DESC, w.id DESC")
+    Page<WorkEntry> findByStatuses(@Param("statuses") List<String> statuses, Pageable pageable);
+
+    @Query("SELECT w FROM WorkEntry w WHERE w.user.id = :userId AND LOWER(w.status) IN (:statuses) ORDER BY w.date DESC, w.id DESC")
+    Page<WorkEntry> findByUserIdAndStatuses(@Param("userId") Long userId, @Param("statuses") List<String> statuses, Pageable pageable);
 
     @Query("""
             SELECT w FROM WorkEntry w
@@ -129,6 +157,18 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
                OR LOWER(w.technology)  LIKE LOWER(CONCAT('%', :keyword, '%'))
             """)
     Page<WorkEntry> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("""
+            SELECT w FROM WorkEntry w
+            WHERE w.user.id = :userId
+              AND (
+                 LOWER(w.title)       LIKE LOWER(CONCAT('%', :keyword, '%'))
+              OR LOWER(w.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
+              OR LOWER(w.category)    LIKE LOWER(CONCAT('%', :keyword, '%'))
+              OR LOWER(w.technology)  LIKE LOWER(CONCAT('%', :keyword, '%'))
+              )
+            """)
+    Page<WorkEntry> searchByKeywordForUser(@Param("userId") Long userId, @Param("keyword") String keyword, Pageable pageable);
 
     // ── Phase 5 — Dashboard Aggregation ───────────────────────────────────────
 
@@ -179,8 +219,12 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
               AND (CAST(:endDate AS LocalDate) IS NULL OR w.date <= :endDate)
               AND (:projectId IS NULL OR w.project.id = :projectId)
               AND (CAST(:category AS string) IS NULL OR LOWER(w.category) = LOWER(CAST(:category AS string)))
-              AND (CAST(:technology AS string) IS NULL OR LOWER(w.technology) = LOWER(CAST(:technology AS string)))
-              AND (CAST(:status AS string) IS NULL OR LOWER(w.status) = LOWER(CAST(:status AS string)))
+              AND (CAST(:technology AS string) IS NULL OR LOWER(w.technology) LIKE LOWER(CONCAT('%', CAST(:technology AS string), '%')))
+              AND (CAST(:status AS string) IS NULL OR 
+                   (LOWER(CAST(:status AS string)) IN ('approved', 'completed') AND LOWER(w.status) IN ('approved', 'completed')) OR
+                   (LOWER(CAST(:status AS string)) IN ('pending', 'submitted', 'in progress', 'in_progress') AND LOWER(w.status) IN ('pending', 'submitted', 'in progress', 'in_progress')) OR
+                   (LOWER(w.status) = LOWER(CAST(:status AS string)))
+              )
               AND (CAST(:keyword AS string) IS NULL OR (
                     LOWER(w.title)       LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
                  OR LOWER(w.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))

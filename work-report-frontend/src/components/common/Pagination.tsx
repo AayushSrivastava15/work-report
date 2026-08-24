@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -82,23 +83,23 @@ export const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-2 select-none">
       {/* Item count description */}
-      <div className="text-xs text-slate-500 font-medium">
-        Showing <span className="font-semibold text-slate-800">{startItem}</span> to{' '}
-        <span className="font-semibold text-slate-800">{endItem}</span> of{' '}
-        <span className="font-semibold text-slate-800">{totalElements}</span> entries
+      <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+        Showing <span className="font-semibold text-slate-800 dark:text-slate-200">{startItem}</span> to{' '}
+        <span className="font-semibold text-slate-800 dark:text-slate-200">{endItem}</span> of{' '}
+        <span className="font-semibold text-slate-800 dark:text-slate-200">{totalElements}</span> entries
       </div>
 
       <div className="flex items-center space-x-4">
         {/* Optional Page size selector */}
         {onSizeChange && (
-          <div className="flex items-center space-x-2 text-xs text-slate-600">
+          <div className="flex items-center space-x-2 text-xs text-slate-600 dark:text-slate-300">
             <span>Rows:</span>
             <select
               value={size}
               disabled={disabled}
               onChange={(e) => onSizeChange(Number(e.target.value))}
               aria-label="Rows per page"
-              className="bg-white border border-slate-300 text-slate-700 text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer disabled:opacity-50"
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer disabled:opacity-50 transition-shadow"
             >
               {sizeOptions.map((opt) => (
                 <option key={opt} value={opt}>
@@ -112,78 +113,83 @@ export const Pagination: React.FC<PaginationProps> = ({
         {/* Navigation Buttons */}
         <div className="flex items-center space-x-1">
           {/* First Page */}
-          <button
+          <motion.button
+            whileTap={!disabled && !isFirst ? { scale: 0.92 } : undefined}
             onClick={() => onPageChange(0)}
             disabled={disabled || isFirst}
             title="First Page"
             aria-label="First page"
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ChevronsLeft className="w-4 h-4" />
-          </button>
+          </motion.button>
 
           {/* Previous Page */}
-          <button
+          <motion.button
+            whileTap={!disabled && !isFirst ? { scale: 0.92 } : undefined}
             onClick={() => onPageChange(page - 1)}
             disabled={disabled || isFirst}
             title="Previous Page"
             aria-label="Previous page"
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
-          </button>
+          </motion.button>
 
           {/* Page numbers */}
           <div className="flex items-center space-x-1">
             {getPageNumbers().map((p, idx) => {
               if (typeof p === 'string') {
                 return (
-                  <span key={`${p}-${idx}`} className="px-1.5 text-xs text-slate-400">
+                  <span key={`${p}-${idx}`} className="px-1.5 text-xs text-slate-400 dark:text-slate-500">
                     …
                   </span>
                 );
               }
               const isActive = p === currentPage;
               return (
-                <button
+                <motion.button
                   key={p}
+                  whileTap={!disabled ? { scale: 0.92 } : undefined}
                   onClick={() => onPageChange(p - 1)}
                   disabled={disabled}
                   aria-label={`Page ${p}`}
                   aria-current={isActive ? 'page' : undefined}
                   className={`min-w-[30px] h-[30px] text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   {p}
-                </button>
+                </motion.button>
               );
             })}
           </div>
 
           {/* Next Page */}
-          <button
+          <motion.button
+            whileTap={!disabled && !isLast ? { scale: 0.92 } : undefined}
             onClick={() => onPageChange(page + 1)}
             disabled={disabled || isLast}
             title="Next Page"
             aria-label="Next page"
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" />
-          </button>
+          </motion.button>
 
           {/* Last Page */}
-          <button
+          <motion.button
+            whileTap={!disabled && !isLast ? { scale: 0.92 } : undefined}
             onClick={() => onPageChange(totalPages - 1)}
             disabled={disabled || isLast}
             title="Last Page"
             aria-label="Last page"
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ChevronsRight className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

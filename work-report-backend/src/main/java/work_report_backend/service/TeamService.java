@@ -333,6 +333,8 @@ public class TeamService {
         res.setTeamId(teamId);
         res.setTeamName(teamName);
         res.setManager("MANAGER".equalsIgnoreCase(user.getRole()));
+        res.setBio(user.getBio());
+        res.setAvatarUrl(user.getAvatarUrl());
         return res;
     }
 }

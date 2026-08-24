@@ -17,6 +17,9 @@ import { teamApi } from '../api/teamApi';
 import { adminApi } from '../api/adminApi';
 import type { Team, TeamRequest, UserResponse } from '../types';
 import { useToast } from '../context/ToastContext';
+import { motion } from 'motion/react';
+import { staggerContainerVariants, cardItemVariants } from '../motion';
+import { AnimatedNumber } from '../components/common/AnimatedNumber';
 
 export const AdminTeamsPage: React.FC = () => {
   const { currentUser, isAdmin, isManager } = useAuth();
@@ -209,29 +212,45 @@ export const AdminTeamsPage: React.FC = () => {
         </div>
 
         {isAdmin && (
-          <button
+          <motion.button
+            whileTap={{ scale: 0.94 }}
             onClick={handleOpenCreate}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Create Team
-          </button>
+          </motion.button>
         )}
       </div>
 
-      {/* Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+      {/* Summary Stat Cards with Stagger & AnimatedNumber */}
+      <motion.div
+        variants={staggerContainerVariants}
+        initial="initial"
+        animate="animate"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+      >
+        <motion.div
+          variants={cardItemVariants}
+          whileHover={{ y: -1, transition: { duration: 0.15 } }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Teams</span>
             <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <Building2 className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">{teams.length}</p>
-        </div>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
+            <AnimatedNumber value={teams.length} />
+          </p>
+        </motion.div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <motion.div
+          variants={cardItemVariants}
+          whileHover={{ y: -1, transition: { duration: 0.15 } }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned Members</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
@@ -239,11 +258,15 @@ export const AdminTeamsPage: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
-            {teams.reduce((acc, t) => acc + (t.memberCount || 0), 0)}
+            <AnimatedNumber value={teams.reduce((acc, t) => acc + (t.memberCount || 0), 0)} />
           </p>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <motion.div
+          variants={cardItemVariants}
+          whileHover={{ y: -1, transition: { duration: 0.15 } }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Team Managers</span>
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
@@ -251,10 +274,10 @@ export const AdminTeamsPage: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
-            {teams.filter(t => t.managerId != null).length}
+            <AnimatedNumber value={teams.filter((t) => t.managerId != null).length} />
           </p>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Search Bar */}
       <div className="flex items-center justify-between gap-4">
@@ -283,20 +306,28 @@ export const AdminTeamsPage: React.FC = () => {
             {searchKeyword ? 'No teams matched your search criteria.' : 'Create teams like "Engineering", "Design", or "Marketing" to organize your organization.'}
           </p>
           {isAdmin && !searchKeyword && (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.94 }}
               onClick={handleOpenCreate}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Create First Team
-            </button>
+            </motion.button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <motion.div
+          variants={staggerContainerVariants}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+        >
           {filteredTeams.map((team) => (
-            <div
+            <motion.div
               key={team.id}
+              variants={cardItemVariants}
+              whileHover={{ y: -2, transition: { duration: 0.15 } }}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div>
@@ -368,9 +399,9 @@ export const AdminTeamsPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Create Team Modal */}

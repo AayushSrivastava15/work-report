@@ -19,6 +19,8 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     // Multi-tenant scoped queries
     Page<Project> findByOrganizationId(Long organizationId, Pageable pageable);
 
+    long countByOrganizationId(Long organizationId);
+
     Page<Project> findByUserIdAndOrganizationId(Long userId, Long organizationId, Pageable pageable);
 
     List<Project> findByUserIdAndOrganizationId(Long userId, Long organizationId);
