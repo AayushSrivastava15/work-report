@@ -2,6 +2,8 @@
 .env
 .env.*
 *.env
+**/.env
+**/.env.*
 **/application-local.properties
 **/application-dev.properties
 
