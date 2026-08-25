@@ -43,6 +43,7 @@ public class UserService {
     private final LoginAttemptService loginAttemptService;
     private final SecurityAuditService securityAuditService;
     private final RbacService rbacService;
+    private final NotificationService notificationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public UserService(
@@ -53,7 +54,8 @@ public class UserService {
             JwtService jwtService,
             LoginAttemptService loginAttemptService,
             SecurityAuditService securityAuditService,
-            RbacService rbacService
+            RbacService rbacService,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -63,6 +65,7 @@ public class UserService {
         this.loginAttemptService = loginAttemptService;
         this.securityAuditService = securityAuditService;
         this.rbacService = rbacService;
+        this.notificationService = notificationService;
     }
 
     // Authenticate / Login User and Generate JWT with Brute Force Protection
@@ -233,6 +236,11 @@ public class UserService {
                 targetOrg.getCode()
         );
 
+        // Send welcome transactional email if account is immediately active
+        if ("ACTIVE".equalsIgnoreCase(savedUser.getStatus())) {
+            notificationService.sendWelcomeNotification(savedUser);
+        }
+
         return convertToResponse(savedUser);
     }
 
@@ -366,6 +374,10 @@ public class UserService {
         User saved = userRepository.save(user);
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         securityAuditService.logUserStatusChange(saved.getEmail(), "ACTIVE", approvedByEmail, orgId);
+
+        // Send approval notification email via Resend
+        notificationService.sendUserApprovedNotification(saved, approvedByEmail);
+
         return convertToResponse(saved);
     }
 
@@ -382,6 +394,10 @@ public class UserService {
         User saved = userRepository.save(user);
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         securityAuditService.logUserStatusChange(saved.getEmail(), "REJECTED", rejectedByEmail, orgId);
+
+        // Send rejection notification email via Resend
+        notificationService.sendUserRejectedNotification(saved, reason);
+
         return convertToResponse(saved);
     }
 
@@ -437,6 +453,10 @@ public class UserService {
         User saved = userRepository.save(user);
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         securityAuditService.logUserRoleChange(saved.getEmail(), sanitizedRole, actorEmail, orgId);
+
+        // Send role updated notification email
+        notificationService.sendRoleChangedNotification(saved, sanitizedRole, actorEmail);
+
         return convertToResponse(saved);
     }
 
@@ -561,7 +581,10 @@ public class UserService {
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+
+        // Send password changed security alert email via Resend
+        notificationService.sendPasswordChangedNotification(saved);
     }
 
     // Convert Entity -> Response DTO (Includes Organization and Team Metadata)

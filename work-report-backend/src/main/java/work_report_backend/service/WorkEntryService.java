@@ -31,19 +31,22 @@ public class WorkEntryService {
     private final ProjectRepository projectRepository;
     private final RbacService rbacService;
     private final SecurityAuditService securityAuditService;
+    private final NotificationService notificationService;
 
     public WorkEntryService(
             WorkEntryRepository workEntryRepository,
             UserRepository userRepository,
             ProjectRepository projectRepository,
             RbacService rbacService,
-            SecurityAuditService securityAuditService
+            SecurityAuditService securityAuditService,
+            NotificationService notificationService
     ) {
         this.workEntryRepository = workEntryRepository;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.rbacService = rbacService;
         this.securityAuditService = securityAuditService;
+        this.notificationService = notificationService;
     }
 
     // ── Phase 3 & 14 — CRUD & Lifecycle ──────────────────────────────────────────
@@ -236,6 +239,22 @@ public class WorkEntryService {
         }
 
         WorkEntry saved = workEntryRepository.save(entry);
+
+        // If submitted for review, notify team manager or organization admins
+        if ("PENDING".equals(saved.getStatus()) && saved.getOrganization() != null) {
+            try {
+                List<User> reviewers;
+                if (saved.getUser() != null && saved.getUser().getTeam() != null && saved.getUser().getTeam().getManager() != null) {
+                    reviewers = List.of(saved.getUser().getTeam().getManager());
+                } else {
+                    reviewers = userRepository.findByOrganizationId(saved.getOrganization().getId()).stream()
+                            .filter(u -> "ADMIN".equalsIgnoreCase(u.getRole()))
+                            .collect(Collectors.toList());
+                }
+                notificationService.sendWorkSubmittedNotification(saved, reviewers);
+            } catch (Exception ignored) {}
+        }
+
         return convertToResponse(saved);
     }
 
@@ -281,6 +300,10 @@ public class WorkEntryService {
         if (reviewer != null && saved.getOrganization() != null) {
             securityAuditService.logReportAction("REPORT_APPROVED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
         }
+
+        // Send approval notification email via Resend
+        notificationService.sendWorkApprovedNotification(saved, reviewer);
+
         return convertToResponse(saved);
     }
 
@@ -313,6 +336,10 @@ public class WorkEntryService {
         if (reviewer != null && saved.getOrganization() != null) {
             securityAuditService.logReportAction("REPORT_REJECTED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
         }
+
+        // Send rejection notification email via Resend
+        notificationService.sendWorkRejectedNotification(saved, reviewer, reason);
+
         return convertToResponse(saved);
     }
 

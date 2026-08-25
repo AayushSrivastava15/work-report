@@ -195,15 +195,27 @@ c:\Projects\Work_Report\
 * **Backend Service:** `UserService.java`
 * **Database Entities:** `User`, `Organization`
 
+### 9. Transactional Email & Resend Notification System (Phase 18A)
+* **Main Frontend Entry:** `work-report-frontend/src/pages/ResetPasswordPage.tsx`, `AcceptInvitePage.tsx`, `LoginPage.tsx` (Forgot Password Modal), `AdminTeamsPage.tsx` (Email Invitations)
+* **API Client:** `src/api/authApi.ts` (`forgotPassword`, `resetPassword`, `validateResetToken`), `src/api/teamApi.ts` (`inviteMember`, `getTeamInvitations`, `cancelInvitation`, `validateInvitation`, `acceptInvitation`)
+* **Backend Controllers:** `AuthController.java`, `TeamController.java`
+* **Backend Services:** `NotificationService.java`, `EmailService.java` / `ResendEmailService.java`, `EmailTemplateService.java`, `PasswordResetService.java`, `TeamInvitationService.java`
+* **Database Entities:** `PasswordResetToken`, `TeamInvitation`, `NotificationLog`
+* **Supported Email Events:** (1) Password Reset, (2) Account Welcome, (3) Team Invitation, (4) Work Approved, (5) Work Rejected, (6) Work Review Requested, (7) Report Ready, (8) Account/Security Alerts.
+
 ---
 
 ## 6. Important File Map
 
 | Path | Responsibility | Important Dependencies | Relevant Tasks |
 |---|---|---|---|
-| `work-report-backend/src/main/resources/application.properties` | Spring Boot datasource, JWT, and JPA settings | PostgreSQL, JVM env vars | Database URL/credentials, port, JWT secrets |
+| `work-report-backend/src/main/resources/application.properties` | Spring Boot datasource, JWT, Resend email settings | PostgreSQL, JVM env vars | Database URL/credentials, port, JWT secrets, Resend API key |
 | `work-report-backend/.../config/SecurityConfig.java` | Spring Security filter chain, CORS rules, endpoint matchers | `JwtAuthenticationFilter`, `CustomAuthenticationEntryPoint` | Modifying public endpoints, CORS origins, security filters |
 | `work-report-backend/.../config/JwtAuthenticationFilter.java` | JWT token parsing from `Authorization: Bearer <token>` | `JwtService`, `CustomUserDetailsService` | Modifying token validation, request authentication flow |
+| `work-report-backend/.../service/NotificationService.java` | Centralized business notification dispatcher for all 8 email events | `EmailService`, `EmailTemplateService` | Triggering transactional emails across domains |
+| `work-report-backend/.../service/ResendEmailService.java` | Non-blocking Resend HTTP client with fallback mock mode & audit log | Spring `RestClient`, `NotificationLogRepository` | Email delivery, Resend API interactions, error isolation |
+| `work-report-backend/.../service/PasswordResetService.java` | Cryptographic token lifecycle & password reset processing | `PasswordResetTokenRepository`, `UserRepository` | Password reset link generation & validation |
+| `work-report-backend/.../service/TeamInvitationService.java` | Team email invite lifecycle, validation & acceptance | `TeamInvitationRepository`, `TeamRepository` | Inviting team members, token verification |
 | `work-report-backend/.../service/WorkEntryService.java` | Work entry CRUD, multi-criteria filtering, lifecycle approvals | `WorkEntryRepository`, `UserRepository`, `ProjectRepository` | Changing work entry business logic, status transitions, filters |
 | `work-report-backend/.../service/DashboardService.java` | Aggregates KPIs, charts, category/tech counts, trend analysis | `WorkEntryRepository`, `ProjectRepository` | Modifying dashboard metrics, date aggregations, drilldowns |
 | `work-report-backend/.../service/ReportExportService.java` | Generates binary PDF, Excel (.xlsx), and Word (.docx) documents | OpenPDF, Apache POI | Updating exported document formats, styling, layout tables |
@@ -213,6 +225,8 @@ c:\Projects\Work_Report\
 | `work-report-frontend/src/api/apiClient.ts` | Centralized Fetch/Axios client with auto-Bearer token injection | Native Fetch / `localStorage` | Base URL changes, global HTTP headers, 401 interceptor |
 | `work-report-frontend/src/pages/DashboardPage.tsx` | Main analytics dashboard UI with KPIs, charts, quick actions | `DashboardHeader`, `dashboardApi.ts`, `Recharts` | Adding/reorganizing dashboard cards, filter controls |
 | `work-report-frontend/src/pages/WorkEntriesPage.tsx` | Work log table, search, multi-filter drawer, review workflows | `workEntryApi.ts`, `WorkEntryDetailsModal` | Modifying work log views, table actions, filtering |
+| `work-report-frontend/src/pages/ResetPasswordPage.tsx` | Password reset view with URL token validation and form | `authApi.ts`, `PasswordField` | User password recovery |
+| `work-report-frontend/src/pages/AcceptInvitePage.tsx` | Team invite acceptance view with organization context | `teamApi.ts` | Team member onboarding |
 | `work-report-frontend/src/context/ThemeContext.tsx` | Light/Dark/System theme state management and DOM class syncing | `localStorage`, CSS root classes | Updating dark mode behavior, theme persistence |
 | `work-report-frontend/src/index.css` | Tailwind CSS v4 root import, custom variants, base theme styles | Tailwind CSS v4, Lenis | Global CSS variables, custom Tailwind variants |
 
@@ -222,33 +236,47 @@ c:\Projects\Work_Report\
 
 ### 1. Authentication Flow
 ```text
-LoginPage.tsx / RegisterPage.tsx
- └──► AuthProvider.tsx
-       └──► authApi.ts (`login()`, `register()`)
-             └──► apiClient.ts (POST /api/auth/login)
-                   └──► AuthController.java
-                         └──► UserService.java / JwtService.java
-                               └──► UserRepository.java
-                                     └──► PostgreSQL `users` table
+LoginPage.tsx / RegisterPage.tsx / ResetPasswordPage.tsx
+ └──► AuthProvider.tsx / authApi.ts
+       └──► apiClient.ts (POST /api/auth/login, POST /api/auth/forgot-password, POST /api/auth/reset-password)
+             └──► AuthController.java
+                   ├──► UserService.java / JwtService.java
+                   └──► PasswordResetService.java ──► NotificationService.java ──► ResendEmailService.java (Resend API)
 ```
 
-### 2. Work Entry Recording & Review Flow
+### 2. Team Invitation Flow
+```text
+AdminTeamsPage.tsx ("Invite by Email")
+ └──► teamApi.ts (`inviteMember()`)
+       └──► TeamController.java (`POST /api/teams/{id}/invitations`)
+             └──► TeamInvitationService.java
+                   ├──► TeamInvitationRepository.java
+                   └──► NotificationService.java ──► ResendEmailService.java ──► Invitee's Email (Accept Link)
+```
+
+### 3. Work Entry Recording & Review Flow
 ```text
 WorkEntriesPage.tsx / DashboardPage.tsx ("Quick Record")
  └──► workEntryApi.ts (`createWorkEntry()`, `submitWorkEntry()`, `approveWorkEntry()`)
        └──► WorkEntryController.java
              └──► WorkEntryService.java
                    ├──► RbacService.java (Validates permission & tenant scope)
+                   ├──► NotificationService.java ──► ResendEmailService.java (Approval / Review Notifications)
                    └──► WorkEntryRepository.java
                          └──► PostgreSQL `work_entries` table
 ```
 
-### 3. Dashboard Analytics Flow
-```text
-DashboardPage.tsx
- └──► dashboardApi.ts (`getComprehensiveAnalytics()`)
-       └──► DashboardController.java (`POST /api/dashboard/analytics`)
-             └──► DashboardService.java
+---
+
+## 8. API Map
+
+### Authentication APIs (`AuthController.java`)
+* `POST /api/auth/login` ──► `UserService.login()` ──► Returns `LoginResponse` (JWT + User info)
+* `POST /api/auth/register` ──► `UserService.register()` ──► Returns `UserResponse`
+* `GET /api/auth/me` ──► `UserService.getCurrentUser()` ──► Returns `UserResponse`
+* `POST /api/auth/forgot-password` ──► `PasswordResetService.initiatePasswordReset()` ──► Dispatches Resend email
+* `GET /api/auth/validate-reset-token?token=...` ──► `PasswordResetService.validateToken()` ──► Returns token status
+* `POST /api/auth/reset-password` ──► `PasswordResetService.completePasswordReset()` ──► Resets password & sends alert email             └──► DashboardService.java
                    └──► WorkEntryRepository.java (Custom JPQL Aggregations & Group Bys)
                          └──► Returns `DashboardAnalyticsResponse` DTO
                                └──► Recharts Visualizations (Bar, Line, Pie, Donut)
@@ -327,6 +355,12 @@ AdminTeamsPage.tsx / AdminUsersPage.tsx
 * `DELETE /api/teams/{id}` ──► `TeamService.deleteTeam()`
 * `POST /api/teams/{id}/members/{userId}` ──► `TeamService.addMember()`
 * `DELETE /api/teams/{id}/members/{userId}` ──► `TeamService.removeMember()`
+* `POST /api/teams/{id}/invitations` ──► `TeamInvitationService.createAndSendInvitation()` ──► Dispatches Resend invite email
+* `GET /api/teams/{id}/invitations` ──► `TeamInvitationService.getInvitationsByTeam()`
+* `DELETE /api/teams/invitations/{id}` ──► `TeamInvitationService.cancelInvitation()`
+* `GET /api/teams/invitations/validate?token=...` ──► `TeamInvitationService.validateInvitation()` (Public)
+* `POST /api/teams/invitations/accept?token=...` ──► `TeamInvitationService.acceptInvitation()`
+
 
 ### Admin User APIs (`AdminUserController.java`)
 * `GET /api/admin/users` ──► `UserService.getAllUsersPaged()`

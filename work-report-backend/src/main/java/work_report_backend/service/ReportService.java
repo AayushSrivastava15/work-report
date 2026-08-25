@@ -23,15 +23,18 @@ public class ReportService {
     private final WorkEntryRepository workEntryRepository;
     private final UserRepository userRepository;
     private final ReportExportService reportExportService;
+    private final NotificationService notificationService;
 
     public ReportService(
             WorkEntryRepository workEntryRepository,
             UserRepository userRepository,
-            ReportExportService reportExportService
+            ReportExportService reportExportService,
+            NotificationService notificationService
     ) {
         this.workEntryRepository = workEntryRepository;
         this.userRepository = userRepository;
         this.reportExportService = reportExportService;
+        this.notificationService = notificationService;
     }
 
     public ReportPreviewResponse generateReportData(Long userId, ReportFilterRequest filter) {

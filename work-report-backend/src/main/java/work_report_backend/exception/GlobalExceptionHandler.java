@@ -16,9 +16,13 @@ import work_report_backend.dto.ErrorResponse;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     // 1. Handle Invalid Credentials (401 UNAUTHORIZED)
     @ExceptionHandler(InvalidCredentialsException.class)
@@ -219,6 +223,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
+        log.error("Unhandled exception processing request [URI: {}]: ", request.getRequestURI(), ex);
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "Internal Server Error",

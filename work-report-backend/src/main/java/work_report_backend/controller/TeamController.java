@@ -7,7 +7,14 @@ import org.springframework.web.bind.annotation.*;
 import work_report_backend.dto.TeamRequest;
 import work_report_backend.dto.TeamResponse;
 import work_report_backend.dto.UserResponse;
+import work_report_backend.dto.TeamInvitationRequest;
+import work_report_backend.dto.TeamInvitationResponse;
+import work_report_backend.dto.ValidateTokenResponse;
+import work_report_backend.entity.User;
+import work_report_backend.repository.UserRepository;
+import work_report_backend.service.TeamInvitationService;
 import work_report_backend.service.TeamService;
+import work_report_backend.util.SecurityUtils;
 
 import java.util.List;
 
@@ -16,9 +23,17 @@ import java.util.List;
 public class TeamController {
 
     private final TeamService teamService;
+    private final TeamInvitationService teamInvitationService;
+    private final UserRepository userRepository;
 
-    public TeamController(TeamService teamService) {
+    public TeamController(
+            TeamService teamService,
+            TeamInvitationService teamInvitationService,
+            UserRepository userRepository
+    ) {
         this.teamService = teamService;
+        this.teamInvitationService = teamInvitationService;
+        this.userRepository = userRepository;
     }
 
     // 1. Get All Teams in Caller's Organization
@@ -90,5 +105,45 @@ public class TeamController {
     @GetMapping("/{id}/members")
     public ResponseEntity<List<UserResponse>> getTeamMembers(@PathVariable Long id) {
         return ResponseEntity.ok(teamService.getTeamMembers(id));
+    }
+
+    // 10. Invite Member by Email (Transactional Email via Resend)
+    @PostMapping("/{id}/invitations")
+    public ResponseEntity<TeamInvitationResponse> inviteMember(
+            @PathVariable Long id,
+            @Valid @RequestBody TeamInvitationRequest request
+    ) {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        TeamInvitationResponse invitation = teamInvitationService.inviteMember(id, request, caller);
+        return ResponseEntity.status(HttpStatus.CREATED).body(invitation);
+    }
+
+    // 11. Get Team Invitations
+    @GetMapping("/{id}/invitations")
+    public ResponseEntity<List<TeamInvitationResponse>> getTeamInvitations(@PathVariable Long id) {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        return ResponseEntity.ok(teamInvitationService.getInvitationsForTeam(id, caller));
+    }
+
+    // 12. Cancel Invitation
+    @DeleteMapping("/invitations/{invitationId}")
+    public ResponseEntity<Void> cancelInvitation(@PathVariable Long invitationId) {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        teamInvitationService.cancelInvitation(invitationId, caller);
+        return ResponseEntity.noContent().build();
+    }
+
+    // 13. Validate Invitation Token (Public)
+    @GetMapping("/invitations/validate")
+    public ResponseEntity<ValidateTokenResponse> validateInvitation(@RequestParam("token") String token) {
+        return ResponseEntity.ok(teamInvitationService.validateInvitationToken(token));
+    }
+
+    // 14. Accept Invitation (Assigns Member to Team)
+    @PostMapping("/invitations/accept")
+    public ResponseEntity<TeamInvitationResponse> acceptInvitation(@RequestParam("token") String token) {
+        User caller = SecurityUtils.getAuthenticatedUser(userRepository);
+        TeamInvitationResponse response = teamInvitationService.acceptInvitation(token, caller);
+        return ResponseEntity.ok(response);
     }
 }

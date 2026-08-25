@@ -1,26 +1,25 @@
 package work_report_backend.controller;
 
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import work_report_backend.dto.LoginRequest;
-import work_report_backend.dto.LoginResponse;
 import org.springframework.http.HttpStatus;
-import work_report_backend.dto.UserRequest;
-import work_report_backend.dto.UserResponse;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import work_report_backend.dto.*;
+import work_report_backend.service.PasswordResetService;
 import work_report_backend.service.UserService;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final UserService userService;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService, PasswordResetService passwordResetService) {
         this.userService = userService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -35,13 +34,31 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/me")
+    @GetMapping("/me")
     public ResponseEntity<work_report_backend.dto.EffectivePermissionsResponse> getCurrentUser() {
         return ResponseEntity.ok(userService.getCurrentUserEffectivePermissions());
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/permissions")
+    @GetMapping("/permissions")
     public ResponseEntity<work_report_backend.dto.EffectivePermissionsResponse> getPermissions() {
         return ResponseEntity.ok(userService.getCurrentUserEffectivePermissions());
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        String message = passwordResetService.initiatePasswordReset(request);
+        return ResponseEntity.ok(Map.of("message", message));
+    }
+
+    @GetMapping("/validate-reset-token")
+    public ResponseEntity<ValidateTokenResponse> validateResetToken(@RequestParam("token") String token) {
+        ValidateTokenResponse response = passwordResetService.validateToken(token);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.completePasswordReset(request);
+        return ResponseEntity.ok(Map.of("message", "Password has been reset successfully. You can now log in."));
     }
 }

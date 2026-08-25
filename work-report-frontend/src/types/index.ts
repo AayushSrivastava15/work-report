@@ -334,3 +334,49 @@ export interface PaginatedResponse<T> {
   first: boolean;
   last: boolean;
 }
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+  confirmPassword?: string;
+}
+
+export interface ValidateTokenResponse {
+  valid: boolean;
+  email?: string;
+  name?: string;
+  teamName?: string;
+  organizationName?: string;
+  role?: string;
+  message?: string;
+}
+
+export interface TeamInvitationRequest {
+  email: string;
+  role?: 'MEMBER' | 'MANAGER' | string;
+  message?: string;
+}
+
+export interface TeamInvitationResponse {
+  id: number;
+  token: string;
+  email: string;
+  teamId?: number;
+  teamName?: string;
+  organizationId?: number;
+  organizationName?: string;
+  inviterId?: number;
+  inviterName?: string;
+  inviterEmail?: string;
+  role: string;
+  status: string;
+  message?: string;
+  expiresAt: string;
+  createdAt: string;
+  acceptedAt?: string;
+}
+

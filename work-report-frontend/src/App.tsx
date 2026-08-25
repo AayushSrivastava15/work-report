@@ -15,6 +15,8 @@ import { AdminTeamsPage } from './pages/AdminTeamsPage';
 import { AdminRoute } from './auth/AdminRoute';
 import { ManagerOrAdminRoute } from './auth/ManagerOrAdminRoute';
 import { RegisterPage } from './pages/RegisterPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { RootRoute } from './auth/RootRoute';
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute';
 import { ToastProvider } from './context/ToastContext';
@@ -51,6 +53,17 @@ export const App: React.FC = () => {
                     </PublicOnlyRoute>
                   }
                 />
+                <Route
+                  path="/reset-password"
+                  element={
+                    <PublicOnlyRoute>
+                      <ResetPasswordPage />
+                    </PublicOnlyRoute>
+                  }
+                />
+
+                {/* Team Invitation Acceptance Route */}
+                <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
                 {/* Protected Enterprise Application Routes */}
                 <Route element={<ProtectedRoute />}>
