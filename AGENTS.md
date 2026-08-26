@@ -195,11 +195,11 @@ c:\Projects\Work_Report\
 * **Backend Service:** `UserService.java`
 * **Database Entities:** `User`, `Organization`
 
-### 9. Transactional Email & Resend Notification System (Phase 18A)
+### 9. Transactional Email & Notification System (SMTP / Mailpit)
 * **Main Frontend Entry:** `work-report-frontend/src/pages/ResetPasswordPage.tsx`, `AcceptInvitePage.tsx`, `LoginPage.tsx` (Forgot Password Modal), `AdminTeamsPage.tsx` (Email Invitations)
 * **API Client:** `src/api/authApi.ts` (`forgotPassword`, `resetPassword`, `validateResetToken`), `src/api/teamApi.ts` (`inviteMember`, `getTeamInvitations`, `cancelInvitation`, `validateInvitation`, `acceptInvitation`)
 * **Backend Controllers:** `AuthController.java`, `TeamController.java`
-* **Backend Services:** `NotificationService.java`, `EmailService.java` / `ResendEmailService.java`, `EmailTemplateService.java`, `PasswordResetService.java`, `TeamInvitationService.java`
+* **Backend Services:** `NotificationService.java`, `EmailService.java` / `SmtpEmailService.java`, `EmailTemplateService.java`, `PasswordResetService.java`, `TeamInvitationService.java`
 * **Database Entities:** `PasswordResetToken`, `TeamInvitation`, `NotificationLog`
 * **Supported Email Events:** (1) Password Reset, (2) Account Welcome, (3) Team Invitation, (4) Work Approved, (5) Work Rejected, (6) Work Review Requested, (7) Report Ready, (8) Account/Security Alerts.
 
@@ -209,11 +209,11 @@ c:\Projects\Work_Report\
 
 | Path | Responsibility | Important Dependencies | Relevant Tasks |
 |---|---|---|---|
-| `work-report-backend/src/main/resources/application.properties` | Spring Boot datasource, JWT, Resend email settings | PostgreSQL, JVM env vars | Database URL/credentials, port, JWT secrets, Resend API key |
+| `work-report-backend/src/main/resources/application.properties` | Spring Boot datasource, JWT, SMTP / Mailpit email settings | PostgreSQL, JVM env vars | Database URL/credentials, port, JWT secrets, SMTP host/port |
 | `work-report-backend/.../config/SecurityConfig.java` | Spring Security filter chain, CORS rules, endpoint matchers | `JwtAuthenticationFilter`, `CustomAuthenticationEntryPoint` | Modifying public endpoints, CORS origins, security filters |
 | `work-report-backend/.../config/JwtAuthenticationFilter.java` | JWT token parsing from `Authorization: Bearer <token>` | `JwtService`, `CustomUserDetailsService` | Modifying token validation, request authentication flow |
 | `work-report-backend/.../service/NotificationService.java` | Centralized business notification dispatcher for all 8 email events | `EmailService`, `EmailTemplateService` | Triggering transactional emails across domains |
-| `work-report-backend/.../service/ResendEmailService.java` | Non-blocking Resend HTTP client with fallback mock mode & audit log | Spring `RestClient`, `NotificationLogRepository` | Email delivery, Resend API interactions, error isolation |
+| `work-report-backend/.../service/SmtpEmailService.java` | Non-blocking SMTP client with JavaMailSender & audit log | `JavaMailSender`, `NotificationLogRepository` | Email delivery, SMTP/Mailpit interactions, error isolation |
 | `work-report-backend/.../service/PasswordResetService.java` | Cryptographic token lifecycle & password reset processing | `PasswordResetTokenRepository`, `UserRepository` | Password reset link generation & validation |
 | `work-report-backend/.../service/TeamInvitationService.java` | Team email invite lifecycle, validation & acceptance | `TeamInvitationRepository`, `TeamRepository` | Inviting team members, token verification |
 | `work-report-backend/.../service/WorkEntryService.java` | Work entry CRUD, multi-criteria filtering, lifecycle approvals | `WorkEntryRepository`, `UserRepository`, `ProjectRepository` | Changing work entry business logic, status transitions, filters |
@@ -241,7 +241,7 @@ LoginPage.tsx / RegisterPage.tsx / ResetPasswordPage.tsx
        └──► apiClient.ts (POST /api/auth/login, POST /api/auth/forgot-password, POST /api/auth/reset-password)
              └──► AuthController.java
                    ├──► UserService.java / JwtService.java
-                   └──► PasswordResetService.java ──► NotificationService.java ──► ResendEmailService.java (Resend API)
+                   └──► PasswordResetService.java ──► NotificationService.java ──► SmtpEmailService.java (SMTP / Mailpit)
 ```
 
 ### 2. Team Invitation Flow
@@ -251,7 +251,7 @@ AdminTeamsPage.tsx ("Invite by Email")
        └──► TeamController.java (`POST /api/teams/{id}/invitations`)
              └──► TeamInvitationService.java
                    ├──► TeamInvitationRepository.java
-                   └──► NotificationService.java ──► ResendEmailService.java ──► Invitee's Email (Accept Link)
+                   └──► NotificationService.java ──► SmtpEmailService.java ──► Invitee's Email (Accept Link)
 ```
 
 ### 3. Work Entry Recording & Review Flow

@@ -223,7 +223,7 @@ export const LoginPage: React.FC = () => {
         ) : (
           <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
             <p className="text-xs text-slate-600 dark:text-slate-300">
-              Enter your corporate email address. We will send a secure single-use password reset link to your inbox via Resend.
+              Enter your corporate email address. We will send a secure single-use password reset link to your inbox.
             </p>
 
             <div>

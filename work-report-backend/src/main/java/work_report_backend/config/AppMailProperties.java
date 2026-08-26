@@ -4,29 +4,20 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConfigurationProperties(prefix = "resend")
-public class ResendProperties {
+@ConfigurationProperties(prefix = "app.mail")
+public class AppMailProperties {
 
-    private String apiKey;
-    private String fromEmail = "onboarding@resend.dev";
+    private String from = "noreply@workreport.local";
     private String fromName = "Work Report";
     private String replyTo;
     private boolean enabled = true;
 
-    public String getApiKey() {
-        return apiKey;
+    public String getFrom() {
+        return from;
     }
 
-    public void setApiKey(String apiKey) {
-        this.apiKey = apiKey;
-    }
-
-    public String getFromEmail() {
-        return fromEmail;
-    }
-
-    public void setFromEmail(String fromEmail) {
-        this.fromEmail = fromEmail;
+    public void setFrom(String from) {
+        this.from = from;
     }
 
     public String getFromName() {
@@ -55,8 +46,8 @@ public class ResendProperties {
 
     public String getFormattedFrom() {
         if (fromName != null && !fromName.isBlank()) {
-            return fromName + " <" + fromEmail + ">";
+            return fromName + " <" + from + ">";
         }
-        return fromEmail;
+        return from;
     }
 }

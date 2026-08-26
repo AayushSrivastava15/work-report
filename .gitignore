@@ -36,4 +36,5 @@ pnpm-debug.log*
 
 # Temporary test scripts & artifacts
 scratch/
+tools/
 

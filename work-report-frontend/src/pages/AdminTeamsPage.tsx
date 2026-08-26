@@ -216,7 +216,7 @@ export const AdminTeamsPage: React.FC = () => {
         message: inviteMessage.trim() || undefined,
       };
       await teamApi.inviteMember(selectedTeam.id, req);
-      showSuccess(`Invitation dispatched via Resend to ${inviteEmail}!`);
+      showSuccess(`Invitation email dispatched to ${inviteEmail}!`);
       setInviteEmail('');
       setInviteMessage('');
       setShowInviteModal(false);
@@ -729,7 +729,7 @@ export const AdminTeamsPage: React.FC = () => {
                   <div className="text-center py-10">
                     <Mail className="w-10 h-10 text-slate-400 mx-auto mb-2" />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No invitations sent yet</p>
-                    <p className="text-xs text-slate-400 mt-1">Use the "Invite by Email" button to send an invitation via Resend.</p>
+                    <p className="text-xs text-slate-400 mt-1">Use the "Invite by Email" button to send an email invitation.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">

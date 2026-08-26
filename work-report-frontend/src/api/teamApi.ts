@@ -68,7 +68,7 @@ export const teamApi = {
     return request<UserResponse[]>(`/teams/${teamId}/members`);
   },
 
-  // Send team invitation by email (Resend)
+  // Send team invitation by email (SMTP / Mailpit)
   inviteMember(teamId: number, data: TeamInvitationRequest): Promise<TeamInvitationResponse> {
     return request<TeamInvitationResponse>(`/teams/${teamId}/invitations`, {
       method: 'POST',

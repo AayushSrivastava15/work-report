@@ -301,7 +301,7 @@ public class WorkEntryService {
             securityAuditService.logReportAction("REPORT_APPROVED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
         }
 
-        // Send approval notification email via Resend
+        // Send approval notification email via SMTP/Mailpit
         notificationService.sendWorkApprovedNotification(saved, reviewer);
 
         return convertToResponse(saved);
@@ -337,7 +337,7 @@ public class WorkEntryService {
             securityAuditService.logReportAction("REPORT_REJECTED", saved.getId(), reviewer.getEmail(), saved.getOrganization().getId());
         }
 
-        // Send rejection notification email via Resend
+        // Send rejection notification email via SMTP/Mailpit
         notificationService.sendWorkRejectedNotification(saved, reviewer, reason);
 
         return convertToResponse(saved);

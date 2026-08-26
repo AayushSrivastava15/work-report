@@ -23,7 +23,7 @@ class EmailTemplateServiceTest {
         assertTrue(html.contains("Alice"));
         assertTrue(html.contains("https://app.workreport.com/reset-password?token=abc123xyz"));
         assertTrue(html.contains("30 minutes"));
-        assertTrue(html.contains("WORK REPORT"));
+        assertTrue(html.contains("Work Report"));
     }
 
     @Test

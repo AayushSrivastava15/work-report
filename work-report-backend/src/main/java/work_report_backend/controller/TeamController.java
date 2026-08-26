@@ -107,7 +107,7 @@ public class TeamController {
         return ResponseEntity.ok(teamService.getTeamMembers(id));
     }
 
-    // 10. Invite Member by Email (Transactional Email via Resend)
+    // 10. Invite Member by Email (Transactional Email via SMTP/Mailpit)
     @PostMapping("/{id}/invitations")
     public ResponseEntity<TeamInvitationResponse> inviteMember(
             @PathVariable Long id,

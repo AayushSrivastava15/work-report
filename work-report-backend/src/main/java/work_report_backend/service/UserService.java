@@ -375,7 +375,7 @@ public class UserService {
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         securityAuditService.logUserStatusChange(saved.getEmail(), "ACTIVE", approvedByEmail, orgId);
 
-        // Send approval notification email via Resend
+        // Send approval notification email via SMTP/Mailpit
         notificationService.sendUserApprovedNotification(saved, approvedByEmail);
 
         return convertToResponse(saved);
@@ -395,7 +395,7 @@ public class UserService {
         Long orgId = user.getOrganization() != null ? user.getOrganization().getId() : null;
         securityAuditService.logUserStatusChange(saved.getEmail(), "REJECTED", rejectedByEmail, orgId);
 
-        // Send rejection notification email via Resend
+        // Send rejection notification email via SMTP/Mailpit
         notificationService.sendUserRejectedNotification(saved, reason);
 
         return convertToResponse(saved);
@@ -583,7 +583,7 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         User saved = userRepository.save(user);
 
-        // Send password changed security alert email via Resend
+        // Send password changed security alert email via SMTP/Mailpit
         notificationService.sendPasswordChangedNotification(saved);
     }
 
