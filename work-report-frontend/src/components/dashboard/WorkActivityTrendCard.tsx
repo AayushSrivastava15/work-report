@@ -171,30 +171,36 @@ export const WorkActivityTrendCard: React.FC<WorkActivityTrendCardProps> = ({
                   <stop offset="95%" stopColor={currentConfig.color} stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
               <XAxis
                 dataKey="period"
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
                 tickLine={false}
-                axisLine={{ stroke: '#e2e8f0' }}
+                axisLine={{ stroke: '#64748b', opacity: 0.25 }}
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
                 tickLine={false}
                 axisLine={false}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                  fontSize: '12px',
-                  padding: '10px 14px',
+                wrapperStyle={{ outline: 'none', zIndex: 50 }}
+                content={({ payload, label }) => {
+                  if (!payload || payload.length === 0) return null;
+                  const value = payload[0].value;
+                  return (
+                    <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl text-xs space-y-1 pointer-events-none">
+                      <div className="font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-1">
+                        Period: {label}
+                      </div>
+                      <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
+                        <span>{currentConfig.label}:</span>
+                        <strong className="font-bold text-blue-600 dark:text-blue-400">{value} entries</strong>
+                      </div>
+                    </div>
+                  );
                 }}
-                formatter={(value: any) => [`${value} entries`, currentConfig.label]}
-                labelFormatter={(label) => `Period: ${label}`}
               />
               <Area
                 type="monotone"

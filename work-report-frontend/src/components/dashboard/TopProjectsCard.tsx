@@ -211,20 +211,20 @@ export const TopProjectsCard: React.FC<TopProjectsCardProps> = ({
               <BarChart
                 data={chartData}
                 layout="vertical"
-                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 15, bottom: 5 }}
               >
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
                   tickLine={false}
-                  axisLine={{ stroke: '#e2e8f0' }}
+                  axisLine={{ stroke: '#64748b', opacity: 0.25 }}
                   unit={unit === 'percentage' ? '%' : ''}
                 />
                 <YAxis
                   type="category"
                   dataKey="projectName"
-                  tick={{ fontSize: 11, fill: '#334155' }}
-                  width={140}
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  width={150}
                   tickFormatter={(val: string) =>
                     val.length > 20 ? `${val.substring(0, 18)}...` : val
                   }
@@ -232,35 +232,29 @@ export const TopProjectsCard: React.FC<TopProjectsCardProps> = ({
                   axisLine={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    fontSize: '12px',
-                    padding: '10px 14px',
-                  }}
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }}
+                  wrapperStyle={{ outline: 'none', zIndex: 50 }}
                   content={({ payload }) => {
                     if (!payload || payload.length === 0) return null;
                     const item = payload[0].payload as ProjectAnalyticsItem;
                     return (
-                      <div className="space-y-1">
-                        <div className="font-semibold text-slate-900 border-b border-slate-100 pb-1">
+                      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl text-xs space-y-1.5 max-w-xs pointer-events-none">
+                        <div className="font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-1">
                           {item.projectName}
                         </div>
-                        <div className="flex justify-between gap-4 text-xs text-slate-600">
+                        <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
                           <span>Total Work Entries:</span>
-                          <strong className="font-bold text-indigo-600">{item.workCount}</strong>
+                          <strong className="font-bold text-indigo-600 dark:text-indigo-400">{item.workCount}</strong>
                         </div>
-                        <div className="flex justify-between gap-4 text-xs text-slate-600">
+                        <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
                           <span>Share of Work:</span>
-                          <strong>{item.percentage}%</strong>
+                          <strong className="text-slate-800 dark:text-slate-200">{item.percentage}%</strong>
                         </div>
-                        <div className="flex justify-between gap-4 text-xs text-emerald-600">
+                        <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
                           <span>Completed:</span>
                           <strong>{item.completedCount}</strong>
                         </div>
-                        <div className="flex justify-between gap-4 text-xs text-amber-600">
+                        <div className="flex justify-between gap-4 text-amber-600 dark:text-amber-400">
                           <span>In Progress:</span>
                           <strong>{item.inProgressCount}</strong>
                         </div>

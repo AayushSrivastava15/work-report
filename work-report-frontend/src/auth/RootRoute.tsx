@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { HomePage } from '../pages/HomePage';
+import { PageLoader } from '../components/common/PageLoader';
+
+const HomePage = lazy(() => import('../pages/HomePage').then((m) => ({ default: m.HomePage })));
 
 /**
  * Smart Root Route (/) resolver:
@@ -15,5 +17,9 @@ export const RootRoute: React.FC = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <HomePage />;
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <HomePage />
+    </Suspense>
+  );
 };

@@ -135,19 +135,19 @@ export const WorkDistributionCard: React.FC<WorkDistributionCardProps> = ({
             <BarChart
               data={chartData}
               layout="vertical"
-              margin={{ top: 5, right: 25, left: 10, bottom: 5 }}
+              margin={{ top: 5, right: 25, left: 15, bottom: 5 }}
             >
               <XAxis
                 type="number"
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
                 tickLine={false}
-                axisLine={{ stroke: '#e2e8f0' }}
+                axisLine={{ stroke: '#64748b', opacity: 0.25 }}
               />
               <YAxis
                 type="category"
                 dataKey="projectName"
-                tick={{ fontSize: 11, fill: '#334155' }}
-                width={140}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                width={150}
                 tickFormatter={(val: string) =>
                   val.length > 20 ? `${val.substring(0, 18)}...` : val
                 }
@@ -155,16 +155,45 @@ export const WorkDistributionCard: React.FC<WorkDistributionCardProps> = ({
                 axisLine={false}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  fontSize: '12px',
-                  padding: '10px 14px',
+                cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }}
+                wrapperStyle={{ outline: 'none', zIndex: 50 }}
+                content={({ payload, label }) => {
+                  if (!payload || payload.length === 0) return null;
+                  const nonZeroItems = payload.filter((p) => Number(p.value) > 0);
+                  const totalEntries = payload[0]?.payload?.total || nonZeroItems.reduce((acc, curr) => acc + Number(curr.value || 0), 0);
+                  return (
+                    <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl text-xs space-y-2 max-w-xs pointer-events-none">
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">
+                          {label}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Total Deliverables: <strong className="text-blue-600 dark:text-blue-400 font-bold">{totalEntries}</strong>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {nonZeroItems.length === 0 ? (
+                          <div className="text-slate-400 italic">No category entries</div>
+                        ) : (
+                          nonZeroItems.map((item) => (
+                            <div key={item.name} className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-300">
+                              <div className="flex items-center space-x-1.5 truncate">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                <span className="truncate">{item.name}</span>
+                              </div>
+                              <span className="font-bold text-slate-800 dark:text-slate-100 shrink-0">{item.value}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+              <Legend
+                wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                formatter={(val) => <span className="text-slate-700 dark:text-slate-300 font-medium">{val}</span>}
+              />
               {allCategories.map((cat, index) => (
                 <Bar
                   key={cat}

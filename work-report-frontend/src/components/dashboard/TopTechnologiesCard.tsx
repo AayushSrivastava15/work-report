@@ -174,19 +174,19 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
               <BarChart
                 data={chartData}
                 layout="vertical"
-                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 15, bottom: 5 }}
               >
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
                   tickLine={false}
-                  axisLine={{ stroke: '#e2e8f0' }}
+                  axisLine={{ stroke: '#64748b', opacity: 0.25 }}
                 />
                 <YAxis
                   type="category"
                   dataKey="technology"
-                  tick={{ fontSize: 11, fill: '#334155' }}
-                  width={130}
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  width={140}
                   tickFormatter={(val: string) =>
                     val.length > 18 ? `${val.substring(0, 16)}...` : val
                   }
@@ -194,12 +194,14 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
                   axisLine={false}
                 />
                 <Tooltip
+                  cursor={{ fill: 'rgba(139, 92, 246, 0.08)' }}
+                  wrapperStyle={{ outline: 'none', zIndex: 50 }}
                   content={({ payload }) => {
                     if (!payload || payload.length === 0) return null;
                     const item = payload[0].payload as TechnologyAnalyticsItem;
                     return (
-                      <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-md text-xs space-y-1 max-w-xs">
-                        <div className="font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-1">
+                      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl text-xs space-y-1.5 max-w-xs pointer-events-none">
+                        <div className="font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-1">
                           {item.technology}
                         </div>
                         <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
@@ -208,10 +210,10 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
                         </div>
                         <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
                           <span>Share:</span>
-                          <strong>{item.percentage}%</strong>
+                          <strong className="text-slate-800 dark:text-slate-200">{item.percentage}%</strong>
                         </div>
                         {item.projects && item.projects.length > 0 && (
-                          <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
                             <span className="font-medium text-slate-700 dark:text-slate-300">Used in: </span>
                             {item.projects.join(', ')}
                           </div>

@@ -4,7 +4,6 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Tooltip,
 } from 'recharts';
 import {
   CheckCircle2,
@@ -97,8 +96,8 @@ export const LifecycleStatusCard: React.FC<LifecycleStatusCardProps> = ({
                   nameKey="label"
                   cx="50%"
                   cy="50%"
-                  innerRadius={58}
-                  outerRadius={82}
+                  innerRadius={68}
+                  outerRadius={92}
                   paddingAngle={3}
                   onClick={(data: any) => onStatusClick(data.status)}
                   onMouseEnter={(_, index) => setHoveredStatus(statuses[index])}
@@ -109,33 +108,24 @@ export const LifecycleStatusCard: React.FC<LifecycleStatusCardProps> = ({
                     <Cell key={entry.status} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any, _, props: any) => [
-                    `${value} entries (${props.payload.percentage}%)`,
-                    props.payload.label,
-                  ]}
-                />
               </PieChart>
             </ResponsiveContainer>
 
-            {/* Center Absolute Metric Overlay */}
-            <div className="absolute flex flex-col items-center justify-center pointer-events-none text-center">
-              <span className="text-2xl font-extrabold text-slate-900 dark:text-white leading-none tracking-tight">
+            {/* Center Absolute Metric Overlay (Interactive Dynamic Readout with Strict Bounding) */}
+            <div className="absolute w-[124px] h-[124px] flex flex-col items-center justify-center pointer-events-none text-center rounded-full">
+              <span className="text-3xl font-black text-slate-900 dark:text-white leading-none tracking-tight transition-all">
                 {hoveredStatus ? hoveredStatus.workCount : totalEntries.toLocaleString()}
               </span>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-wider">
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-tight truncate max-w-[115px] px-1 transition-all" title={hoveredStatus ? hoveredStatus.label : 'Total Reports'}>
                 {hoveredStatus ? hoveredStatus.label : 'Total Reports'}
               </span>
-              {hoveredStatus && (
-                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+              {hoveredStatus ? (
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 animate-fadeIn">
                   {hoveredStatus.percentage}% share
+                </span>
+              ) : (
+                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+                  100% active
                 </span>
               )}
             </div>
