@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 interface AuthHeaderProps {
   title: string;
@@ -28,9 +28,11 @@ export const AuthHeader: React.FC<AuthHeaderProps> = ({
       )}
 
       <div className="flex justify-center mb-2.5">
-        <div className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 ring-4 ring-blue-50 dark:ring-blue-950/60">
-          <Briefcase className="w-5.5 h-5.5" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="WorkPulse Logo"
+          className="w-12 h-12 rounded-2xl object-cover shadow-md shadow-blue-500/20 ring-4 ring-blue-50 dark:ring-blue-950/60"
+        />
       </div>
 
       <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">

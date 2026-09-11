@@ -1,14 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
-import {
   Cpu,
   Search,
   MoreVertical,
@@ -16,6 +7,7 @@ import {
   Table,
   Download,
   ExternalLink,
+  Layers,
 } from 'lucide-react';
 import type { TechnologyAnalyticsItem } from '../../types';
 
@@ -34,48 +26,32 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
   onExpand,
   onExportCsv,
 }) => {
-  const [limit, setLimit] = useState<'5' | '10' | '20' | 'ALL'>('10');
+  const [limit, setLimit] = useState<'5' | '10' | 'ALL'>('5');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMenu, setShowMenu] = useState(false);
 
-  const chartData = useMemo(() => {
-    let filtered = [...technologies];
+  // Maximum work count for relative horizontal indicator width
+  const maxWorkCount = useMemo(() => {
+    return Math.max(...technologies.map((t) => t.workCount), 1);
+  }, [technologies]);
+
+  const filteredTechnologies = useMemo(() => {
+    let list = [...technologies];
 
     if (searchTerm.trim()) {
-      filtered = filtered.filter((t) =>
+      list = list.filter((t) =>
         t.technology.toLowerCase().includes(searchTerm.toLowerCase().trim())
       );
     }
 
-    if (limit === 'ALL' || filtered.length <= Number(limit)) {
-      return filtered;
-    }
+    list.sort((a, b) => b.workCount - a.workCount);
 
-    const n = Number(limit);
-    const topN = filtered.slice(0, n);
-    const other = filtered.slice(n);
-
-    const otherWorkCount = other.reduce((acc, curr) => acc + curr.workCount, 0);
-    const otherPercentage = Math.round(
-      other.reduce((acc, curr) => acc + curr.percentage, 0) * 10
-    ) / 10;
-
-    const result = [...topN];
-    if (other.length > 0) {
-      result.push({
-        technology: `Other Technologies (${other.length})`,
-        workCount: otherWorkCount,
-        projectCount: other.length,
-        projects: [],
-        percentage: otherPercentage,
-      });
-    }
-
-    return result;
-  }, [technologies, limit, searchTerm]);
+    if (limit === 'ALL') return list;
+    return list.slice(0, Number(limit));
+  }, [technologies, searchTerm, limit]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4 flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4 flex flex-col justify-between transition-all">
       <div>
         {/* Header & Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
@@ -84,19 +60,19 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
               <Cpu className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white tracking-tight">
-                Top Technologies Used
+              <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                Technology Stack
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Technology frequency across projects
+                Adoption frequency and project cross-references
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 self-end sm:self-center">
             {/* Limit Selector */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
-              {(['5', '10', '20', 'ALL'] as const).map((l) => (
+            <div className="flex items-center bg-slate-100/90 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+              {(['5', '10', 'ALL'] as const).map((l) => (
                 <button
                   key={l}
                   onClick={() => setLimit(l)}
@@ -111,11 +87,11 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
               ))}
             </div>
 
-            {/* Options Menu */}
+            {/* More Menu */}
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
-                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 <MoreVertical className="w-3.5 h-3.5" />
               </button>
@@ -126,21 +102,21 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
                 >
                   <button
                     onClick={onViewDetails}
-                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Table className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     View Details Table
                   </button>
                   <button
                     onClick={onExpand}
-                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Maximize2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                    Expand Chart
+                    Expand View
                   </button>
                   <button
                     onClick={onExportCsv}
-                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     Export CSV
@@ -152,7 +128,7 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
         </div>
 
         {/* Quick Search */}
-        <div className="relative mb-2">
+        <div className="relative mb-3">
           <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 top-2.5" />
           <input
             type="text"
@@ -163,87 +139,77 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
           />
         </div>
 
-        {/* Chart Canvas */}
-        {chartData.length === 0 ? (
-          <div className="h-72 flex items-center justify-center text-sm text-slate-400 dark:text-slate-500">
+        {/* Compact Ranked List with Mini Indicators */}
+        {filteredTechnologies.length === 0 ? (
+          <div className="h-56 flex items-center justify-center text-sm text-slate-400 dark:text-slate-500">
             No technologies matched your query.
           </div>
         ) : (
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 15, bottom: 5 }}
-              >
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  tickLine={false}
-                  axisLine={{ stroke: '#64748b', opacity: 0.25 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="technology"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  width={140}
-                  tickFormatter={(val: string) =>
-                    val.length > 18 ? `${val.substring(0, 16)}...` : val
-                  }
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(139, 92, 246, 0.08)' }}
-                  wrapperStyle={{ outline: 'none', zIndex: 50 }}
-                  content={({ payload }) => {
-                    if (!payload || payload.length === 0) return null;
-                    const item = payload[0].payload as TechnologyAnalyticsItem;
-                    return (
-                      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl text-xs space-y-1.5 max-w-xs pointer-events-none">
-                        <div className="font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-1">
-                          {item.technology}
-                        </div>
-                        <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
-                          <span>Usage Count:</span>
-                          <strong className="font-bold text-purple-600 dark:text-purple-400">{item.workCount} entries</strong>
-                        </div>
-                        <div className="flex justify-between gap-4 text-slate-600 dark:text-slate-300">
-                          <span>Share:</span>
-                          <strong className="text-slate-800 dark:text-slate-200">{item.percentage}%</strong>
-                        </div>
-                        {item.projects && item.projects.length > 0 && (
-                          <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
-                            <span className="font-medium text-slate-700 dark:text-slate-300">Used in: </span>
-                            {item.projects.join(', ')}
-                          </div>
+          <div className="space-y-2.5">
+            {filteredTechnologies.map((t, idx) => {
+              const relativeWidth = Math.min(100, Math.round((t.workCount / maxWorkCount) * 100));
+              return (
+                <div
+                  key={t.technology}
+                  onClick={() => onTechClick(t.technology)}
+                  className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 hover:bg-purple-50/50 dark:hover:bg-purple-950/30 border border-slate-200/60 dark:border-slate-700/60 hover:border-purple-300 dark:hover:border-purple-700/70 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center space-x-2 truncate">
+                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 w-4 shrink-0">
+                        #{idx + 1}
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
+                        {t.technology}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
+                        {t.workCount} {t.workCount === 1 ? 'entry' : 'entries'}
+                      </span>
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-600">
+                        {t.percentage}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Horizontal Volume Bar */}
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden mb-1.5">
+                    <div
+                      className="bg-purple-600 dark:bg-purple-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${relativeWidth}%` }}
+                    />
+                  </div>
+
+                  {/* Projects cross-reference pills */}
+                  {t.projects && t.projects.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-hidden pt-0.5">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 flex items-center gap-1">
+                        <Layers className="w-2.5 h-2.5" />
+                        Projects:
+                      </span>
+                      <div className="flex items-center gap-1 truncate">
+                        {t.projects.slice(0, 3).map((proj) => (
+                          <span
+                            key={proj}
+                            className="inline-block text-[10px] font-medium px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 truncate max-w-[110px]"
+                            title={proj}
+                          >
+                            {proj}
+                          </span>
+                        ))}
+                        {t.projects.length > 3 && (
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                            +{t.projects.length - 3} more
+                          </span>
                         )}
                       </div>
-                    );
-                  }}
-                />
-                <Bar
-                  dataKey="workCount"
-                  fill="#8b5cf6"
-                  radius={[0, 4, 4, 0]}
-                  onClick={(data: any) => onTechClick(data.technology)}
-                  className="cursor-pointer hover:opacity-85 transition-opacity"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell
-                      key={`tech-cell-${index}`}
-                      fill={
-                        entry.technology.startsWith('Other')
-                          ? '#94a3b8'
-                          : index === 0
-                          ? '#7c3aed'
-                          : '#8b5cf6'
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -251,7 +217,7 @@ export const TopTechnologiesCard: React.FC<TopTechnologiesCardProps> = ({
       {/* Footer */}
       <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <span className="text-xs text-slate-400 dark:text-slate-500">
-          Showing {chartData.length} of {technologies.length} technologies
+          Showing {filteredTechnologies.length} of {technologies.length} technologies
         </span>
         <button
           onClick={onViewDetails}

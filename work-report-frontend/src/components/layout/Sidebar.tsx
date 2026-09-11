@@ -77,7 +77,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         {/* Mobile Header in sidebar */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 lg:hidden">
-          <span className="font-bold text-slate-800 dark:text-white">Work Report</span>
+          <div className="flex items-center space-x-2.5">
+            <img src="/logo.png" alt="WorkPulse" className="w-7 h-7 rounded-lg object-cover" />
+            <div className="flex items-center font-bold tracking-tight text-base leading-none">
+              <span className="text-slate-900 dark:text-white">Work</span>
+              <span className="text-blue-600 dark:text-blue-400">Pulse</span>
+            </div>
+          </div>
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={onClose}
@@ -172,8 +178,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* System info footer */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
-          <div className="font-semibold text-slate-700 dark:text-slate-300">Work Report Enterprise</div>
-          <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Secure JWT &bull; v1.0.0</div>
+          <div className="flex items-center space-x-2 mb-1">
+            <img src="/logo.png" alt="WorkPulse" className="w-4 h-4 rounded-sm object-cover" />
+            <div className="font-bold text-slate-800 dark:text-slate-200">WorkPulse Enterprise</div>
+          </div>
+          <div className="text-[11px] text-slate-400 dark:text-slate-500">Secure JWT &bull; v1.0.0</div>
         </div>
       </aside>
     </>

@@ -86,7 +86,7 @@ export const AcceptInvitePage: React.FC = () => {
     <AuthLayout>
       <AuthHeader
         title="Team Invitation"
-        subtitle="You've been invited to collaborate on Work Report"
+        subtitle="You've been invited to collaborate on WorkPulse"
       />
 
       <AuthCard variant="compact">

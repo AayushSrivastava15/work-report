@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Briefcase,
   CheckCircle2,
   FileText,
   FolderKanban,
@@ -27,15 +26,18 @@ export const HomePage: React.FC = () => {
           {/* Logo & Title */}
           <div
             onClick={() => navigate('/')}
-            className="flex items-center space-x-2.5 cursor-pointer select-none"
+            className="flex items-center space-x-2.5 cursor-pointer select-none group"
           >
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Briefcase className="w-5 h-5" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="WorkPulse"
+              className="w-9 h-9 rounded-xl object-cover shadow-xs border border-slate-200/60 dark:border-slate-700/60 group-hover:scale-105 transition-transform"
+            />
             <div>
-              <span className="font-bold text-slate-800 dark:text-white tracking-tight text-lg leading-none">
-                Work Report
-              </span>
+              <div className="flex items-center font-bold tracking-tight text-lg leading-none">
+                <span className="text-slate-900 dark:text-white">Work</span>
+                <span className="text-blue-600 dark:text-blue-400">Pulse</span>
+              </div>
               <div className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-wider">
                 Enterprise Hub
               </div>
@@ -85,7 +87,7 @@ export const HomePage: React.FC = () => {
           {/* Eyebrow Badge */}
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800 text-blue-700 dark:text-blue-400 text-xs font-semibold uppercase tracking-wider mb-6 shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Work Report Management System &bull; v1.0</span>
+            <span>WorkPulse &bull; Enterprise Work Intelligence Platform</span>
           </div>
 
           {/* Headline */}
@@ -318,14 +320,12 @@ export const HomePage: React.FC = () => {
       <footer className="bg-slate-900 text-slate-400 py-12 border-t border-slate-800 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-              <Briefcase className="w-4 h-4" />
-            </div>
+            <img src="/logo.png" alt="WorkPulse" className="w-7 h-7 rounded-lg object-cover" />
             <span className="font-bold text-slate-200 text-sm">
-              Work Report Management System
+              Work<span className="text-blue-400">Pulse</span> Enterprise
             </span>
           </div>
-          <div>&copy; {new Date().getFullYear()} Work Report Enterprise. All rights reserved.</div>
+          <div>&copy; {new Date().getFullYear()} WorkPulse Enterprise. All rights reserved.</div>
           <div className="flex items-center space-x-4 text-slate-400">
             <span>Spring Security JWT</span>
             <span>&bull;</span>

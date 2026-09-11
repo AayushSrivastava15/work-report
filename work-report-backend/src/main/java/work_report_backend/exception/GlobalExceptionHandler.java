@@ -208,10 +208,20 @@ public class GlobalExceptionHandler {
             DataIntegrityViolationException ex,
             HttpServletRequest request
     ) {
+        String message = "Operation could not be completed due to a database constraint conflict.";
+        String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
+        if (rootMsg != null) {
+            if (rootMsg.contains("value too long for type")) {
+                message = "One of the input fields exceeds the maximum allowed database length.";
+            } else if (rootMsg.contains("duplicate key") || rootMsg.contains("unique constraint")) {
+                message = "An entry with this unique identifier or name already exists.";
+            }
+        }
+
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "Database Constraint Violation",
-                "Operation could not be completed due to a database constraint conflict.",
+                message,
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);

@@ -668,7 +668,7 @@ export const SettingsPage: React.FC = () => {
                     Color Theme & Interface Appearance
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Choose how Work Report looks to you. Select a light or dark theme, or sync with your system.
+                    Choose how WorkPulse looks to you. Select a light or dark theme, or sync with your system.
                   </p>
                 </div>
                 <span className="px-3 py-1 text-xs font-bold rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">

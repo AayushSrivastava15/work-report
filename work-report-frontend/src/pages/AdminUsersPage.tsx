@@ -329,8 +329,8 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Company Invite Code Box */}
-        {(stats.organizationCode || authUser?.organizationCode) && (
+        {/* Company Invite Code Box (Only for team/company accounts) */}
+        {!(authUser?.organizationType === 'INDIVIDUAL' || (stats.organizationCode || authUser?.organizationCode)?.startsWith('SOLO-')) && (stats.organizationCode || authUser?.organizationCode) && (
           <div className="flex items-center space-x-2.5 bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/20">
             <div className="text-right">
               <div className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">

@@ -134,7 +134,7 @@ export const RegisterPage: React.FC = () => {
   return (
     <AuthLayout>
       <AuthHeader
-        title="Join Work Report Platform"
+        title="Join WorkPulse Platform"
         subtitle="Create an organization, join your team, or start a personal workspace"
       />
 

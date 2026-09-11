@@ -27,23 +27,30 @@ import { TopCategoriesCard } from '../components/dashboard/TopCategoriesCard';
 import { TopTechnologiesCard } from '../components/dashboard/TopTechnologiesCard';
 import { LifecycleStatusCard } from '../components/dashboard/LifecycleStatusCard';
 import { WorkDistributionCard } from '../components/dashboard/WorkDistributionCard';
+import { NeedsAttentionCard } from '../components/dashboard/NeedsAttentionCard';
 import { AnalyticsDetailsDrawer } from '../components/dashboard/AnalyticsDetailsDrawer';
 import { ChartExpandModal } from '../components/dashboard/ChartExpandModal';
+import { reportApi } from '../api/reportApi';
+import { downloadBlob } from '../utils/downloadHelper';
+import { useToast } from '../context/ToastContext';
 import {
-  Plus,
-  Download,
-  FileEdit,
   Clock,
   Eye,
   History,
+  FolderKanban,
+  CheckCircle2,
+  AlertCircle,
+  Calendar,
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const { currentUserId, currentUser } = useUser();
+  const { showSuccess, showError, showInfo } = useToast();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // Analytics Response Data
   const [analytics, setAnalytics] = useState<DashboardAnalyticsResponse | null>(null);
@@ -207,6 +214,76 @@ export const DashboardPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Report Download Shortcuts
+  const handleExportPdf = async () => {
+    if (!currentUserId) return;
+    try {
+      setIsExporting(true);
+      showInfo('Generating PDF work report...', 'Export Started');
+      const { blob, filename } = await reportApi.exportPdf(currentUserId, {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        projectId: filters.projectId,
+        category: filters.category,
+        technology: filters.technology,
+        status: filters.status,
+      });
+      const finalName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
+    } catch (err: any) {
+      showError(err.message || 'Unable to export PDF report. Please try again.', 'Export Failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!currentUserId) return;
+    try {
+      setIsExporting(true);
+      showInfo('Generating Excel spreadsheet...', 'Export Started');
+      const { blob, filename } = await reportApi.exportExcel(currentUserId, {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        projectId: filters.projectId,
+        category: filters.category,
+        technology: filters.technology,
+        status: filters.status,
+      });
+      const finalName = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
+    } catch (err: any) {
+      showError(err.message || 'Unable to export Excel report. Please try again.', 'Export Failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportDocx = async () => {
+    if (!currentUserId) return;
+    try {
+      setIsExporting(true);
+      showInfo('Generating Word document...', 'Export Started');
+      const { blob, filename } = await reportApi.exportDocx(currentUserId, {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        projectId: filters.projectId,
+        category: filters.category,
+        technology: filters.technology,
+        status: filters.status,
+      });
+      const finalName = filename.endsWith('.docx') ? filename : `${filename}.docx`;
+      downloadBlob(blob, finalName);
+      showSuccess(`Report downloaded: ${finalName}`, 'Export Complete');
+    } catch (err: any) {
+      showError(err.message || 'Unable to export Word report. Please try again.', 'Export Failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (loading && !analytics) {
     return <LoadingSpinner message="Calculating high-density work analytics..." className="py-24" />;
   }
@@ -238,7 +315,7 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. Dashboard Header & Global Filters */}
+      {/* 1. Dashboard Header: Unified Command Center & Direct Report Shortcuts */}
       <DashboardHeader
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -252,52 +329,23 @@ export const DashboardPage: React.FC = () => {
         onClearDrilldown={() => setDrilldown(null)}
         userName={currentUser?.name}
         isManagerOrAdmin={isManagerOrAdmin}
+        draftCount={kpis.draftWork}
+        pendingCount={kpis.inProgressWork}
+        onCreateReport={() => navigate('/work-entries?new=1')}
+        onNavigateDrafts={() => navigate('/work-entries?status=DRAFT')}
+        onNavigatePending={() => navigate('/work-entries?status=PENDING')}
+        onNavigateReports={() => navigate('/reports')}
+        onExportPdf={handleExportPdf}
+        onExportExcel={handleExportExcel}
+        onExportDocx={handleExportDocx}
+        onExportCsv={exportFullCsv}
+        isExporting={isExporting}
       />
 
-      {/* Quick Action Buttons Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-        <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          <span>Quick Access:</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200">{currentUser?.name}</span>
-          <span>•</span>
-          <span>{currentUser?.role}</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => navigate('/work-entries?new=1')}
-            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            Create Work Report
-          </button>
-          <button
-            onClick={() => navigate('/work-entries?status=DRAFT')}
-            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-          >
-            <FileEdit className="w-3.5 h-3.5 mr-1 text-slate-500 dark:text-slate-400" />
-            My Drafts ({kpis.draftWork})
-          </button>
-          <button
-            onClick={() => navigate('/work-entries?status=PENDING')}
-            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 transition-colors cursor-pointer"
-          >
-            <Clock className="w-3.5 h-3.5 mr-1 text-amber-600 dark:text-amber-400" />
-            Pending Review ({kpis.inProgressWork})
-          </button>
-          <button
-            onClick={() => navigate('/reports')}
-            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 mr-1 text-slate-500 dark:text-slate-400" />
-            Export Reports
-          </button>
-        </div>
-      </div>
-
-      {/* 2. KPI Summary Cards */}
+      {/* 2. KPI Summary Cards (with Sparklines, Engagement, & Progress) */}
       <DashboardKpiCards
         kpis={kpis}
+        activityTrends={analytics?.activityTrends || []}
         onCardClick={(type) => {
           if (type === 'projects' || type === 'active_projects') setDrawerType('PROJECTS');
           if (type === 'technologies') setDrawerType('TECHNOLOGIES');
@@ -317,32 +365,53 @@ export const DashboardPage: React.FC = () => {
         />
       ) : (
         <>
-          {/* 3. Work Activity Trend Chart */}
-          <WorkActivityTrendCard
-            trends={analytics?.activityTrends || []}
-            currentAggregation={filters.aggregation || 'DAY'}
-            onAggregationChange={(agg) => handleFilterChange({ aggregation: agg })}
-            onViewDetails={() => setDrawerType('ACTIVITY')}
-            onExpand={() =>
-              setExpandModal({
-                title: 'Work Activity Over Time',
-                subtitle: 'Throughput velocity and delivery trends over selected period',
-                type: 'ACTIVITY',
-              })
-            }
-            onExportCsv={exportFullCsv}
-          />
+          {/* 3. Primary Analytics: Work Activity Over Time (8 cols) + Work Status (4 cols) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8">
+              <WorkActivityTrendCard
+                trends={analytics?.activityTrends || []}
+                currentAggregation={filters.aggregation || 'DAY'}
+                onAggregationChange={(agg) => handleFilterChange({ aggregation: agg })}
+                onViewDetails={() => setDrawerType('ACTIVITY')}
+                onExpand={() =>
+                  setExpandModal({
+                    title: 'Work Activity Over Time',
+                    subtitle: 'Throughput velocity and delivery trends over selected period',
+                    type: 'ACTIVITY',
+                  })
+                }
+                onExportCsv={exportFullCsv}
+              />
+            </div>
 
-          {/* 4. Projects & Categories Row */}
+            <div className="lg:col-span-4">
+              <LifecycleStatusCard
+                statuses={analytics?.statuses || []}
+                totalEntries={kpis.totalWorkEntries}
+                onStatusClick={handleDrilldownStatus}
+                onViewDetails={() => setDrawerType('STATUSES')}
+                onExpand={() =>
+                  setExpandModal({
+                    title: 'Lifecycle Status Breakdown',
+                    subtitle: 'Work delivery pipeline and review distribution',
+                    type: 'STATUS',
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          {/* 4. Secondary Analytics: Project Performance (Ranked Rows) + Work by Category (Donut) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <TopProjectsCard
               projects={analytics?.projects || []}
+              recentEntries={analytics?.recentEntries || []}
               onProjectClick={handleDrilldownProject}
               onViewDetails={() => setDrawerType('PROJECTS')}
               onExpand={() =>
                 setExpandModal({
-                  title: 'Projects Breakdown',
-                  subtitle: 'Volume distribution and delivery completion rates per project',
+                  title: 'Project Performance Breakdown',
+                  subtitle: 'Volume distribution, completion rate, and latest activity per project',
                   type: 'PROJECTS',
                 })
               }
@@ -355,7 +424,7 @@ export const DashboardPage: React.FC = () => {
               onViewDetails={() => setDrawerType('CATEGORIES')}
               onExpand={() =>
                 setExpandModal({
-                  title: 'Work Categories',
+                  title: 'Work Categories Allocation',
                   subtitle: 'Effort allocation across functional domains',
                   type: 'CATEGORIES',
                 })
@@ -364,65 +433,65 @@ export const DashboardPage: React.FC = () => {
             />
           </div>
 
-          {/* 5. Technologies & Lifecycle Status Row */}
+          {/* 5. Work Breakdown: Project × Category Matrix Heatmap + Technology Stack */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <WorkDistributionCard
+              distribution={analytics?.workDistribution || []}
+              onProjectClick={handleDrilldownProject}
+              onViewDetails={() => setDrawerType('PROJECTS')}
+              onExpand={() =>
+                setExpandModal({
+                  title: 'Work Distribution Matrix Heatmap',
+                  subtitle: 'Functional domain heatmap across top projects',
+                  type: 'DISTRIBUTION',
+                })
+              }
+              onExportCsv={exportFullCsv}
+            />
+
             <TopTechnologiesCard
               technologies={analytics?.technologies || []}
               onTechClick={handleDrilldownTech}
               onViewDetails={() => setDrawerType('TECHNOLOGIES')}
               onExpand={() =>
                 setExpandModal({
-                  title: 'Technologies Distribution',
-                  subtitle: 'Usage breakdown and project adoption across tech stacks',
+                  title: 'Technology Stack Directory',
+                  subtitle: 'Adoption and project usage breakdown across tech stacks',
                   type: 'TECHNOLOGIES',
                 })
               }
               onExportCsv={exportFullCsv}
             />
-
-            <LifecycleStatusCard
-              statuses={analytics?.statuses || []}
-              totalEntries={kpis.totalWorkEntries}
-              onStatusClick={handleDrilldownStatus}
-              onViewDetails={() => setDrawerType('STATUSES')}
-              onExpand={() =>
-                setExpandModal({
-                  title: 'Lifecycle Status Breakdown',
-                  subtitle: 'Work delivery pipeline and review distribution',
-                  type: 'STATUS',
-                })
-              }
-            />
           </div>
 
-          {/* 6. Work Distribution Matrix (Project -> Category) */}
-          <WorkDistributionCard
-            distribution={analytics?.workDistribution || []}
-            onProjectClick={handleDrilldownProject}
-            onViewDetails={() => setDrawerType('PROJECTS')}
-            onExpand={() =>
-              setExpandModal({
-                title: 'Work Distribution Matrix',
-                subtitle: 'Functional domain breakdown across top projects',
-                type: 'DISTRIBUTION',
-              })
-            }
-            onExportCsv={exportFullCsv}
+          {/* 6. Needs Attention Area (Pending, Drafts, Action items from real data) */}
+          <NeedsAttentionCard
+            kpis={kpis}
+            recentEntries={analytics?.recentEntries || []}
+            onSelectEntry={(entry) => setSelectedEntry(entry)}
+            onNavigateDrafts={() => navigate('/work-entries?status=DRAFT')}
+            onNavigatePending={() => navigate('/work-entries?status=PENDING')}
+            onNavigateWorkEntries={() => navigate('/work-entries')}
           />
 
-          {/* 7. Recent Filtered Work Activity Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
+          {/* 7. Recent Filtered Deliverables Feed & Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden transition-all">
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                   <History className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                    Recent Filtered Deliverables
-                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                      Recent Deliverables
+                    </h3>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {analytics?.recentEntries?.length || 0} matching
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Most recent work logs matching current criteria
+                    Latest work logs matching active filter and drilldown criteria
                   </p>
                 </div>
               </div>
@@ -441,46 +510,79 @@ export const DashboardPage: React.FC = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-                  <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                  <thead className="bg-slate-50/80 dark:bg-slate-800/80 text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                     <tr>
                       <th className="px-6 py-3">Date</th>
                       <th className="px-6 py-3">Project</th>
-                      <th className="px-6 py-3">Title & Deliverable</th>
-                      <th className="px-6 py-3">Category</th>
+                      <th className="px-6 py-3">Deliverable & Summary</th>
+                      <th className="px-6 py-3">Domain</th>
                       <th className="px-6 py-3">Technology</th>
-                      <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3 text-right">Action</th>
+                      <th className="px-6 py-3">Lifecycle Status</th>
+                      <th className="px-6 py-3 text-right">Details</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                     {analytics.recentEntries.map((entry) => (
                       <tr
                         key={entry.id}
                         onClick={() => setSelectedEntry(entry)}
-                        className="hover:bg-blue-50/40 dark:hover:bg-blue-950/40 transition-colors cursor-pointer group"
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
                       >
                         <td className="px-6 py-3.5 whitespace-nowrap font-medium text-slate-900 dark:text-white">
-                          {entry.date}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap font-medium text-blue-600 dark:text-blue-400">
-                          {entry.projectName}
-                        </td>
-                        <td className="px-6 py-3.5 max-w-sm truncate text-slate-700 dark:text-slate-200 font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                          {entry.title}
+                          <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {entry.date}
+                          </span>
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDrilldownProject(entry.projectId || null, entry.projectName);
+                            }}
+                            className="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            title={`Filter by ${entry.projectName}`}
+                          >
+                            <FolderKanban className="w-3 h-3" />
+                            {entry.projectName}
+                          </button>
+                        </td>
+                        <td className="px-6 py-3.5 max-w-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          <div className="truncate" title={entry.title}>
+                            {entry.title}
+                          </div>
+                        </td>
+                        <td className="px-6 py-3.5 whitespace-nowrap">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDrilldownCategory(entry.category);
+                            }}
+                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title={`Filter by ${entry.category}`}
+                          >
                             {entry.category}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-100 dark:border-purple-800">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDrilldownTech(entry.technology);
+                            }}
+                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-100 dark:border-purple-800 hover:bg-purple-100 transition-colors cursor-pointer"
+                            title={`Filter by ${entry.technology}`}
+                          >
                             {entry.technology}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDrilldownStatus(entry.status);
+                            }}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-all hover:scale-105 ${
                               entry.status === 'Approved' || entry.status === 'Completed' || entry.status === 'APPROVED' || entry.status === 'COMPLETED'
                                 ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                                 : entry.status === 'Pending' || entry.status === 'Submitted' || entry.status === 'In Progress' || entry.status === 'PENDING' || entry.status === 'IN PROGRESS'
@@ -489,14 +591,22 @@ export const DashboardPage: React.FC = () => {
                                 ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                             }`}
+                            title={`Filter by ${entry.status}`}
                           >
+                            {entry.status === 'Approved' || entry.status === 'Completed' || entry.status === 'APPROVED' || entry.status === 'COMPLETED' ? (
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                            ) : entry.status === 'Pending' || entry.status === 'Submitted' || entry.status === 'In Progress' || entry.status === 'PENDING' ? (
+                              <Clock className="w-2.5 h-2.5 text-amber-600" />
+                            ) : (
+                              <AlertCircle className="w-2.5 h-2.5" />
+                            )}
                             {entry.status}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => setSelectedEntry(entry)}
-                            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors cursor-pointer"
                             title="View Report Details"
                           >
                             <Eye className="w-4 h-4" />
@@ -625,7 +735,7 @@ export const DashboardPage: React.FC = () => {
             render: (s) => (
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                <span className="font-semibold text-slate-800">{s.label}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{s.label}</span>
               </div>
             ),
           },
@@ -677,7 +787,7 @@ export const DashboardPage: React.FC = () => {
         subtitle={expandModal?.subtitle}
       >
         {expandModal?.type === 'ACTIVITY' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <WorkActivityTrendCard
               trends={analytics?.activityTrends || []}
               currentAggregation={filters.aggregation || 'DAY'}
@@ -692,9 +802,10 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
         {expandModal?.type === 'PROJECTS' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <TopProjectsCard
               projects={analytics?.projects || []}
+              recentEntries={analytics?.recentEntries || []}
               onProjectClick={(pId, pName) => {
                 setExpandModal(null);
                 handleDrilldownProject(pId, pName);
@@ -709,7 +820,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
         {expandModal?.type === 'CATEGORIES' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <TopCategoriesCard
               categories={analytics?.categories || []}
               onCategoryClick={(cat) => {
@@ -726,7 +837,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
         {expandModal?.type === 'TECHNOLOGIES' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <TopTechnologiesCard
               technologies={analytics?.technologies || []}
               onTechClick={(tech) => {
@@ -743,7 +854,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
         {expandModal?.type === 'STATUS' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <LifecycleStatusCard
               statuses={analytics?.statuses || []}
               totalEntries={kpis.totalWorkEntries}
@@ -760,7 +871,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
         {expandModal?.type === 'DISTRIBUTION' && (
-          <div className="h-96 w-full">
+          <div className="w-full">
             <WorkDistributionCard
               distribution={analytics?.workDistribution || []}
               onProjectClick={(pId, pName) => {

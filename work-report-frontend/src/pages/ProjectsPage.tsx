@@ -67,7 +67,7 @@ export const ProjectsPage: React.FC = () => {
 
   // Form States for Project
   const [formData, setFormData] = useState<ProjectRequest>({ name: '', description: '' });
-  const [formErrors, setFormErrors] = useState<{ name?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string; description?: string; general?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
   const fetchProjects = async (pageToFetch = page, sizeToFetch = size) => {
@@ -110,9 +110,14 @@ export const ProjectsPage: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
-    const errors: { name?: string } = {};
+    const errors: { name?: string; description?: string; general?: string } = {};
     if (!formData.name.trim()) {
       errors.name = 'Project name is required';
+    } else if (formData.name.length > 100) {
+      errors.name = 'Project name cannot exceed 100 characters';
+    }
+    if (formData.description && formData.description.length > 500) {
+      errors.description = 'Project description cannot exceed 500 characters';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -163,8 +168,17 @@ export const ProjectsPage: React.FC = () => {
       showSuccess(`Project "${created.name}" created successfully!`);
       fetchProjects(0, size);
     } catch (err: any) {
-      const errorMsg = err.fieldErrors?.name || err.message || 'Failed to create project';
-      setFormErrors({ name: errorMsg });
+      const fieldErrors = err.fieldErrors || {};
+      const errorMsg = err.message || 'Failed to create project';
+      if (fieldErrors.name || fieldErrors.description) {
+        setFormErrors({
+          name: fieldErrors.name,
+          description: fieldErrors.description,
+          general: (!fieldErrors.name && !fieldErrors.description) ? errorMsg : undefined,
+        });
+      } else {
+        setFormErrors({ general: errorMsg });
+      }
       showError(errorMsg);
     } finally {
       setSubmitting(false);
@@ -182,8 +196,17 @@ export const ProjectsPage: React.FC = () => {
       showSuccess(`Project "${updated.name}" updated successfully!`);
       fetchProjects(page, size);
     } catch (err: any) {
-      const errorMsg = err.fieldErrors?.name || err.message || 'Failed to update project';
-      setFormErrors({ name: errorMsg });
+      const fieldErrors = err.fieldErrors || {};
+      const errorMsg = err.message || 'Failed to update project';
+      if (fieldErrors.name || fieldErrors.description) {
+        setFormErrors({
+          name: fieldErrors.name,
+          description: fieldErrors.description,
+          general: (!fieldErrors.name && !fieldErrors.description) ? errorMsg : undefined,
+        });
+      } else {
+        setFormErrors({ general: errorMsg });
+      }
       showError(errorMsg);
     } finally {
       setSubmitting(false);
@@ -610,6 +633,12 @@ export const ProjectsPage: React.FC = () => {
       {/* CREATE PROJECT MODAL */}
       <Modal isOpen={isCreateOpen} onClose={handleCloseCreate} title="Create New Project">
         <form onSubmit={handleCreateSubmit} className="space-y-4">
+          {formErrors.general && (
+            <div className="p-3 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-lg">
+              {formErrors.general}
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -648,8 +677,11 @@ export const ProjectsPage: React.FC = () => {
               placeholder="Brief summary of the project goals..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3.5 py-2 text-sm rounded-lg border ${
+                formErrors.description ? 'border-red-400 focus:ring-red-300' : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2`}
             />
+            {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -678,6 +710,12 @@ export const ProjectsPage: React.FC = () => {
         title={`Edit Project: ${editingProject?.name || ''}`}
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
+          {formErrors.general && (
+            <div className="p-3 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-lg">
+              {formErrors.general}
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -714,8 +752,11 @@ export const ProjectsPage: React.FC = () => {
               maxLength={500}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3.5 py-2 text-sm rounded-lg border ${
+                formErrors.description ? 'border-red-400 focus:ring-red-300' : 'border-slate-300 dark:border-slate-700 focus:ring-blue-500'
+              } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2`}
             />
+            {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
